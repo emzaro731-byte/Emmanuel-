@@ -1,35 +1,28 @@
-name: Build Android APK
+
+name: Build Veylola APK
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - master
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Veylola
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Setup Java
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
-      - name: Setup Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK
@@ -39,17 +32,35 @@ jobs:
           sdkmanager "build-tools;35.0.0"
           yes | sdkmanager --licenses || true
 
-      - name: Generate Android project
-        run: npx expo prebuild --platform android --non-interactive
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
 
-      - name: Build APK
-        working-directory: android
+      - name: Make Gradle executable
         run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+          fi
 
-      - name: Upload APK
+      - name: Build Veylola Release APK
+        run: |
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleRelease --no-daemon
+          else
+            gradle assembleRelease --no-daemon
+          fi
+
+      - name: Find APK
+        run: |
+          echo "APK files found:"
+          find . -type f -name "*.apk" -print
+
+      - name: Upload Veylola APK
         uses: actions/upload-artifact@v4
         with:
-          name: Veylola-Android-APK
-          path: android/app/build/outputs/apk/release/*.apk
+          name: Veylola-APK
+          path: |
+            **/build/outputs/apk/release/*.apk
+            **/build/outputs/apk/**/*.apk
+          if-no-files-found: error
