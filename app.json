@@ -4,34 +4,26 @@
     "slug": "destiny-ai",
     "version": "1.0.0",
     "orientation": "portrait",
+
+    "icon": "./assets/icon.png",
+
     "userInterfaceStyle": "dark",
+
     "newArchEnabled": false,
-    "scheme": "destinyai",
 
     "android": {
       "package": "com.emmanuel.destinyai",
       "versionCode": 1,
-      "userInterfaceStyle": "dark",
-      "softwareKeyboardLayoutMode": "resize",
-      "allowBackup": true,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#07111F"
       }
     },
 
-    "plugins": [
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow Destiny AI to access your photos so you can upload images.",
-          "cameraPermission": "Allow Destiny AI to access your camera so you can upload images.",
-          "microphonePermission": false
-        }
-      ]
-    ],
-
-    "extra": {
-      "backendUrl": "https://vihbsfrwnslnmheowkhy.supabase.co/functions/v1/destiny-ai-chat"
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#07111F"
     }
   }
 }
