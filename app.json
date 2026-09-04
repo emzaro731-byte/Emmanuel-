@@ -1,29 +1,32 @@
 {
-  "expo": {
-    "name": "Destiny AI",
-    "slug": "destiny-ai",
-    "version": "1.0.0",
-    "orientation": "portrait",
-
-    "icon": "./assets/icon.png",
-
-    "userInterfaceStyle": "dark",
-
-    "newArchEnabled": false,
-
-    "android": {
-      "package": "com.emmanuel.destinyai",
-      "versionCode": 1,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#07111F"
-      }
-    },
-
-    "splash": {
-      "image": "./assets/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#07111F"
-    }
+  "name": "destiny-ai",
+  "version": "1.0.0",
+  "main": "node_modules/expo/AppEntry.js",
+  "private": true,
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "prebuild": "expo prebuild",
+    "build:android": "expo prebuild --platform android --non-interactive && cd android && ./gradlew assembleRelease",
+    "doctor": "npx expo-doctor"
+  },
+  "dependencies": {
+    "expo": "~54.0.0",
+    "expo-asset": "~12.0.13",
+    "expo-constants": "~18.0.14",
+    "expo-file-system": "~19.0.24",
+    "expo-font": "~14.0.12",
+    "expo-image-picker": "~17.0.11",
+    "expo-keep-awake": "~15.0.8",
+    "expo-speech": "~14.0.8",
+    "react": "19.1.0",
+    "react-native": "0.81.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "babel-preset-expo": "~54.0.0",
+    "typescript": "~5.9.2"
   }
 }
