@@ -1,0 +1,19 @@
+{
+  "name": "destiny-ai",
+  "version": "1.0.0",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "build:apk": "eas build --platform android --profile preview"
+  },
+  "dependencies": {
+    "expo": "~57.0.0",
+    "expo-image-picker": "~17.0.11",
+    "expo-speech": "~57.0.2",
+    "expo-status-bar": "~3.0.0",
+    "react": "19.2.0",
+    "react-native": "0.83.0"
+  },
+  "private": true
+}
