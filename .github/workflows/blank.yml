@@ -9,21 +9,25 @@ on:
 
 jobs:
   build-apk:
-
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
 
+      # Download your GitHub repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
+      # Install Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
 
+      # Install Java 17
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -31,16 +35,22 @@ jobs:
           java-version: "17"
 
 
+      # Install Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
 
-      - name: Show files
+      # Show repository files for debugging
+      - name: Show project files
         run: |
-          echo "PROJECT FILES:"
+          echo "=============================="
+          echo "DESTINY AI PROJECT FILES"
+          echo "=============================="
+          pwd
           ls -la
 
 
+      # Check package.json exists
       - name: Check package.json
         run: |
           if [ ! -f "package.json" ]; then
@@ -48,39 +58,91 @@ jobs:
             exit 1
           fi
 
-          echo "package.json found successfully!"
+          echo "package.json found successfully."
 
 
+      # Install all dependencies
       - name: Install dependencies
-        run: npm install
-
-
-      - name: Check Expo
-        run: npx expo --version
-
-
-      - name: Generate Android project
-        run: npx expo prebuild --platform android --non-interactive
-
-
-      - name: Check Android folder
         run: |
-          echo "ANDROID PROJECT:"
+          npm install
+
+
+      # Check that Babel preset is installed
+      - name: Check Babel
+        run: |
+          npm ls babel-preset-expo
+
+
+      # Check Expo
+      - name: Check Expo
+        run: |
+          npx expo --version
+
+
+      # Check the Expo project
+      - name: Run Expo Doctor
+        run: |
+          npx expo-doctor || true
+
+
+      # Remove old Android folder
+      # This prevents old broken native files from causing problems
+      - name: Clean old Android project
+        run: |
+          rm -rf android
+
+
+      # Generate a fresh native Android project
+      - name: Generate Android project
+        run: |
+          npx expo prebuild --platform android --clean --non-interactive
+
+
+      # Check Android files
+      - name: Check Android project
+        run: |
+          echo "=============================="
+          echo "ANDROID PROJECT CREATED"
+          echo "=============================="
+
           ls -la android
 
+          if [ ! -f "android/gradlew" ]; then
+            echo "ERROR: Android Gradle wrapper was not created!"
+            exit 1
+          fi
 
+
+      # Make Gradle executable
       - name: Make Gradle executable
-        run: chmod +x android/gradlew
+        run: |
+          chmod +x android/gradlew
 
 
-      - name: Build Release APK
+      # Build the Release APK
+      - name: Build Destiny AI Release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        env:
+          NODE_ENV: production
+        run: |
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
 
+      # Show APK files
+      - name: Find generated APK
+        run: |
+          echo "=============================="
+          echo "SEARCHING FOR APK"
+          echo "=============================="
+
+          find android -type f -name "*.apk" -print
+
+
+      # Upload APK to GitHub Actions
       - name: Upload Destiny AI APK
         uses: actions/upload-artifact@v4
         with:
           name: Destiny-AI-APK
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+          retention-days: 7
