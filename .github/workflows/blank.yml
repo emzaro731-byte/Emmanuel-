@@ -18,53 +18,69 @@ jobs:
         uses: actions/checkout@v4
 
 
-      - name: Show project files
-        run: |
-          echo "Repository files:"
-          ls -la
-          echo ""
-          echo "Searching for Gradle files:"
-          find . -maxdepth 4 \( -name "settings.gradle" -o -name "settings.gradle.kts" -o -name "build.gradle" -o -name "build.gradle.kts" \) -print
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
 
-      - name: Set up Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: "temurin"
           java-version: "17"
 
 
-      - name: Set up Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
-
-
-      - name: Make Gradle wrapper executable
+      - name: Show files
         run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-          fi
+          echo "PROJECT FILES:"
+          ls -la
 
 
-      - name: Build Release APK
+      - name: Check package.json
         run: |
-          if [ -f "./gradlew" ]; then
-            ./gradlew assembleRelease --no-daemon
-          elif [ -f "./settings.gradle" ] || [ -f "./settings.gradle.kts" ]; then
-            gradle assembleRelease --no-daemon
-          else
-            echo "ERROR: No Gradle project found in repository root."
-            echo "Make sure settings.gradle and build.gradle are uploaded to GitHub."
+          if [ ! -f "package.json" ]; then
+            echo "ERROR: package.json was not found!"
             exit 1
           fi
 
+          echo "package.json found successfully!"
 
-      - name: Upload Release APK
+
+      - name: Install dependencies
+        run: npm install
+
+
+      - name: Check Expo
+        run: npx expo --version
+
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --non-interactive
+
+
+      - name: Check Android folder
+        run: |
+          echo "ANDROID PROJECT:"
+          ls -la android
+
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+
+      - name: Build Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+
+      - name: Upload Destiny AI APK
         uses: actions/upload-artifact@v4
         with:
           name: Destiny-AI-APK
-          path: app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
