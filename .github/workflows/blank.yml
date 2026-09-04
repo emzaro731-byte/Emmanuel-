@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
 
       - name: Setup Java
@@ -35,38 +36,16 @@ jobs:
         uses: android-actions/setup-android@v3
 
 
-      - name: Show files
-        run: |
-          echo "PROJECT FILES:"
-          ls -la
-
-
-      - name: Check package.json
-        run: |
-          if [ ! -f "package.json" ]; then
-            echo "ERROR: package.json was not found!"
-            exit 1
-          fi
-
-          echo "package.json found successfully!"
-
-
       - name: Install dependencies
         run: npm install
 
 
-      - name: Check Expo
-        run: npx expo --version
+      - name: Check Expo project
+        run: npx expo-doctor
 
 
-      - name: Generate Android project
-        run: npx expo prebuild --platform android --non-interactive
-
-
-      - name: Check Android folder
-        run: |
-          echo "ANDROID PROJECT:"
-          ls -la android
+      - name: Generate clean Android project
+        run: npx expo prebuild --platform android --clean --non-interactive
 
 
       - name: Make Gradle executable
@@ -75,7 +54,14 @@ jobs:
 
       - name: Build Release APK
         working-directory: android
+        env:
+          NODE_ENV: production
         run: ./gradlew assembleRelease --no-daemon
+
+
+      - name: Show APK
+        run: |
+          ls -lh android/app/build/outputs/apk/release/
 
 
       - name: Upload Destiny AI APK
