@@ -1,66 +1,70 @@
-
-name: Build Veylola APK
+name: Build Destiny AI APK
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
-      - master
 
 jobs:
   build-apk:
+
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Veylola
+
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+
+      - name: Show project files
+        run: |
+          echo "Repository files:"
+          ls -la
+          echo ""
+          echo "Searching for Gradle files:"
+          find . -maxdepth 4 \( -name "settings.gradle" -o -name "settings.gradle.kts" -o -name "build.gradle" -o -name "build.gradle.kts" \) -print
+
+
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
+
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK
-        run: |
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-35"
-          sdkmanager "build-tools;35.0.0"
-          yes | sdkmanager --licenses || true
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
+        uses: gradle/actions/setup-gradle@v6
 
-      - name: Make Gradle executable
+
+      - name: Make Gradle wrapper executable
         run: |
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
           fi
 
-      - name: Build Veylola Release APK
+
+      - name: Build Release APK
         run: |
           if [ -f "./gradlew" ]; then
             ./gradlew assembleRelease --no-daemon
-          else
+          elif [ -f "./settings.gradle" ] || [ -f "./settings.gradle.kts" ]; then
             gradle assembleRelease --no-daemon
+          else
+            echo "ERROR: No Gradle project found in repository root."
+            echo "Make sure settings.gradle and build.gradle are uploaded to GitHub."
+            exit 1
           fi
 
-      - name: Find APK
-        run: |
-          echo "APK files found:"
-          find . -type f -name "*.apk" -print
 
-      - name: Upload Veylola APK
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Veylola-APK
-          path: |
-            **/build/outputs/apk/release/*.apk
-            **/build/outputs/apk/**/*.apk
+          name: Destiny-AI-APK
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
