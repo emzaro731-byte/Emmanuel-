@@ -9,19 +9,9 @@
 
     "icon": "./assets/icon.png",
 
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#07111F"
-    },
-
     "android": {
       "package": "com.emmanuelebitarijames.destinyai",
       "versionCode": 1,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#07111F"
-      },
       "permissions": [
         "android.permission.INTERNET"
       ]
