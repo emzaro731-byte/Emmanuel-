@@ -43,7 +43,7 @@ serve(async (req: Request) => {
       return jsonResponse(
         {
           success: false,
-          error: "Please provide a video prompt.",
+          error: "Please provide a music prompt.",
         },
         400,
       );
@@ -62,31 +62,28 @@ serve(async (req: Request) => {
     }
 
     /*
-      IMPORTANT:
+      Set your selected music/audio model in Supabase:
 
-      Set FAL_VIDEO_MODEL in Supabase Secrets.
-
-      Example:
-      FAL_VIDEO_MODEL = your-selected-fal-video-model
+      FAL_MUSIC_MODEL
     */
 
-    const VIDEO_MODEL =
-      Deno.env.get("FAL_VIDEO_MODEL");
+    const MUSIC_MODEL =
+      Deno.env.get("FAL_MUSIC_MODEL");
 
-    if (!VIDEO_MODEL) {
+    if (!MUSIC_MODEL) {
       return jsonResponse(
         {
           success: false,
 
           error:
-            "FAL_VIDEO_MODEL is not configured in Supabase Secrets.",
+            "FAL_MUSIC_MODEL is not configured in Supabase Secrets.",
         },
         500,
       );
     }
 
     const falResponse = await fetch(
-      `https://fal.run/${VIDEO_MODEL}`,
+      `https://fal.run/${MUSIC_MODEL}`,
       {
         method: "POST",
 
@@ -104,7 +101,7 @@ serve(async (req: Request) => {
     const falData = await falResponse.json();
 
     if (!falResponse.ok) {
-      console.error("fal.ai video error:", falData);
+      console.error("fal.ai music error:", falData);
 
       return jsonResponse(
         {
@@ -113,28 +110,28 @@ serve(async (req: Request) => {
           error:
             falData?.detail ||
             falData?.error ||
-            "Video generation failed.",
+            "Music generation failed.",
         },
         falResponse.status,
       );
     }
 
-    const videoUrl =
-      falData?.video?.url ||
-      falData?.video_url ||
+    const audioUrl =
+      falData?.audio?.url ||
+      falData?.audio_url ||
       falData?.url;
 
     return jsonResponse({
       success: true,
 
-      type: "video",
+      type: "music",
 
-      video_url: videoUrl || null,
+      audio_url: audioUrl || null,
 
       data: falData,
     });
   } catch (error) {
-    console.error("Generate video error:", error);
+    console.error("Generate music error:", error);
 
     return jsonResponse(
       {
