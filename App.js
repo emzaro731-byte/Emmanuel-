@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 
 import {
   SafeAreaView,
@@ -6,871 +6,523 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   StyleSheet,
-  Image,
-  Alert,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  StatusBar,
+  Image,
 } from "react-native";
 
-import { StatusBar } from "expo-status-bar";
-
 import * as ImagePicker from "expo-image-picker";
-
 import * as Speech from "expo-speech";
 
-
-const BACKEND_URL = "YOUR_BACKEND_URL";
-
+const BACKEND_URL =
+  "https://vihbsfrwnslnmheowkhy.supabase.co/functions/v1/destiny-ai-chat";
 
 export default function App() {
-
-  const [message, setMessage] = useState("");
-
-  const [loading, setLoading] = useState(false);
-
-  const [selectedImage, setSelectedImage] = useState(null);
-
-  const [plan, setPlan] = useState("Free");
-
-  const scrollViewRef = useRef(null);
-
-
   const [messages, setMessages] = useState([
-
     {
-      id: "welcome",
+      id: "1",
       role: "assistant",
-      type: "text",
-      text: "Hello! I'm Destiny AI ✦. How can I assist you today?"
-    }
-
+      text: "Hello! I am Destiny AI. How can I help you today?",
+    },
   ]);
 
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function addMessage(newMessage) {
+  const isImageRequest = (text) => {
+    const words = [
+      "create an image",
+      "generate an image",
+      "make an image",
+      "create image",
+      "generate image",
+      "draw",
+      "create a picture",
+      "generate a picture",
+    ];
 
-    setMessages((oldMessages) => [
+    const lowerText = text.toLowerCase();
 
-      ...oldMessages,
+    return words.some((word) => lowerText.includes(word));
+  };
 
-      {
-        id: Date.now().toString(),
-        ...newMessage
-      }
+  const sendMessage = async () => {
+    const userText = input.trim();
 
+    if (!userText || loading) return;
+
+    const userMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      text: userText,
+    };
+
+    setMessages((previousMessages) => [
+      ...previousMessages,
+      userMessage,
     ]);
 
-  }
-
-
-  async function pickImage() {
+    setInput("");
+    setLoading(true);
 
     try {
+      const response = await fetch(BACKEND_URL, {
+        method: "POST",
 
-      const result =
-        await ImagePicker.launchImageLibraryAsync({
+        headers: {
+          "Content-Type": "application/json",
+        },
 
-          mediaTypes: ["images"],
+        body: JSON.stringify({
+          message: userText,
+          type: isImageRequest(userText) ? "image" : "chat",
+        }),
+      });
 
-          allowsEditing: false,
-
-          quality: 1
-
-        });
-
-
-      if (!result.canceled) {
-
-        setSelectedImage(
-          result.assets[0].uri
-        );
-
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
       }
 
-    }
+      const data = await response.json();
 
-    catch (error) {
+      let replyText =
+        data.reply ||
+        data.message ||
+        data.response ||
+        "Sorry, I could not generate a response.";
+
+      const imageUrl =
+        data.imageUrl ||
+        data.image_url ||
+        data.url ||
+        null;
+
+      const aiMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        text: replyText,
+        image: imageUrl,
+      };
+
+      setMessages((previousMessages) => [
+        ...previousMessages,
+        aiMessage,
+      ]);
+    } catch (error) {
+      console.log("Destiny AI Error:", error);
+
+      const errorMessage = {
+        id: (Date.now() + 2).toString(),
+        role: "assistant",
+        text:
+          "I could not connect to the Destiny AI server. Please check your internet connection or backend configuration.",
+      };
+
+      setMessages((previousMessages) => [
+        ...previousMessages,
+        errorMessage,
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photos."
+        );
+
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.length > 0) {
+        const imageUri = result.assets[0].uri;
+
+        const imageMessage = {
+          id: Date.now().toString(),
+          role: "user",
+          text: "Image uploaded",
+          image: imageUri,
+        };
+
+        setMessages((previousMessages) => [
+          ...previousMessages,
+          imageMessage,
+        ]);
+      }
+    } catch (error) {
+      console.log("Image Picker Error:", error);
 
       Alert.alert(
         "Error",
-        "Could not select image."
+        "Unable to open your image gallery."
       );
-
     }
+  };
 
-  }
-
-
-  async function sendMessage() {
-
-    const cleanMessage =
-      message.trim();
-
-
-    if (!cleanMessage && !selectedImage) {
-
-      return;
-
-    }
-
-
-    const userMessage = {
-
-      role: "user",
-
-      type: "text",
-
-      text: cleanMessage,
-
-      image: selectedImage
-
-    };
-
-
-    addMessage(userMessage);
-
-
-    setMessage("");
-
-    setSelectedImage(null);
-
-    setLoading(true);
-
-
-    try {
-
-      /*
-       SEND REQUEST TO YOUR SECURE BACKEND
-
-       The backend decides whether to:
-
-       - Send chat to Groq
-       - Generate an image using fal.ai
-      */
-
-      const response = await fetch(
-
-        BACKEND_URL,
-
-        {
-
-          method: "POST",
-
-          headers: {
-
-            "Content-Type": "application/json"
-
-          },
-
-          body: JSON.stringify({
-
-            message: cleanMessage,
-
-            image: userMessage.image,
-
-            plan: plan
-
-          })
-
-        }
-
-      );
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          "Backend request failed"
-        );
-
-      }
-
-
-      const data =
-        await response.json();
-
-
-      /*
-       EXPECTED BACKEND RESPONSE:
-
-       {
-         type: "text",
-         reply: "Hello"
-       }
-
-       OR
-
-       {
-         type: "image",
-         imageUrl: "https://..."
-       }
-      */
-
-
-      if (data.type === "image") {
-
-        addMessage({
-
-          role: "assistant",
-
-          type: "image",
-
-          image: data.imageUrl,
-
-          text:
-            data.reply ||
-            "Your image is ready ✦"
-
-        });
-
-      }
-
-      else {
-
-        addMessage({
-
-          role: "assistant",
-
-          type: "text",
-
-          text:
-
-            data.reply ||
-
-            "Sorry, I could not generate a response."
-
-        });
-
-      }
-
-    }
-
-    catch (error) {
-
-      addMessage({
-
-        role: "assistant",
-
-        type: "text",
-
-        text:
-
-          "⚠️ Could not reach Destiny AI. Please check your internet connection and backend URL."
-
-      });
-
-    }
-
-    finally {
-
-      setLoading(false);
-
-    }
-
-  }
-
-
-  function speakMessage(text) {
+  const speakMessage = (text) => {
+    if (!text) return;
 
     Speech.stop();
 
     Speech.speak(text, {
-
-      language: "en",
-
-      rate: 0.9
-
+      language: "en-US",
+      rate: 0.9,
     });
+  };
 
-  }
+  const renderMessage = ({ item }) => {
+    const isUser = item.role === "user";
 
+    return (
+      <View
+        style={[
+          styles.messageRow,
+          isUser
+            ? styles.userMessageRow
+            : styles.aiMessageRow,
+        ]}
+      >
+        <View
+          style={[
+            styles.messageBubble,
+            isUser
+              ? styles.userBubble
+              : styles.aiBubble,
+          ]}
+        >
+          <Text
+            style={[
+              styles.messageText,
+              isUser
+                ? styles.userText
+                : styles.aiText,
+            ]}
+          >
+            {item.text}
+          </Text>
 
-  function clearChat() {
+          {item.image ? (
+            <Image
+              source={{ uri: item.image }}
+              style={styles.messageImage}
+              resizeMode="cover"
+            />
+          ) : null}
 
-    setMessages([
-
-      {
-        id: Date.now().toString(),
-
-        role: "assistant",
-
-        type: "text",
-
-        text:
-          "New chat started ✦ How can I help you?"
-      }
-
-    ]);
-
-  }
-
+          {!isUser && (
+            <TouchableOpacity
+              style={styles.speakButton}
+              onPress={() => speakMessage(item.text)}
+            >
+              <Text style={styles.speakText}>
+                🔊 Listen
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
 
   return (
-
     <SafeAreaView style={styles.container}>
-
-      <StatusBar style="light" />
-
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#07111F"
+      />
 
       {/* HEADER */}
 
       <View style={styles.header}>
-
-
         <View>
-
           <Text style={styles.logo}>
-
-            ✦ Destiny AI
-
+            Destiny AI
           </Text>
 
-
-          <Text style={styles.planText}>
-
-            {plan} Plan
-
+          <Text style={styles.subtitle}>
+            Your Intelligent Assistant
           </Text>
-
         </View>
 
+        <View style={styles.onlineContainer}>
+          <View style={styles.onlineDot} />
 
-        <TouchableOpacity
-          onPress={clearChat}
-          style={styles.newButton}
-        >
-
-          <Text style={styles.newButtonText}>
-
-            + New
-
+          <Text style={styles.onlineText}>
+            Online
           </Text>
-
-        </TouchableOpacity>
-
-
+        </View>
       </View>
-
-
-      {/* PLAN SELECTOR */}
-
-      <View style={styles.plans}>
-
-
-        {["Free", "Premium", "Pro"].map(
-
-          (item) => (
-
-            <TouchableOpacity
-
-              key={item}
-
-              onPress={() => setPlan(item)}
-
-              style={[
-
-                styles.planButton,
-
-                plan === item &&
-                  styles.activePlan
-
-              ]}
-
-            >
-
-              <Text
-                style={[
-
-                  styles.planButtonText,
-
-                  plan === item &&
-                    styles.activePlanText
-
-                ]}
-              >
-
-                {item}
-
-              </Text>
-
-            </TouchableOpacity>
-
-          )
-
-        )}
-
-      </View>
-
 
       {/* CHAT */}
 
-      <ScrollView
-
-        ref={scrollViewRef}
-
-        style={styles.chat}
-
-        contentContainerStyle={
-          styles.chatContent
-        }
-
-        onContentSizeChange={() =>
-          scrollViewRef.current?.scrollToEnd({
-            animated: true
-          })
-        }
-
-      >
-
-
-        {messages.map((item) => (
-
-          <View
-
-            key={item.id}
-
-            style={[
-
-              styles.messageRow,
-
-              item.role === "user"
-                ? styles.userRow
-                : styles.aiRow
-
-            ]}
-
-          >
-
-
-            <View
-
-              style={[
-
-                styles.messageBubble,
-
-                item.role === "user"
-                  ? styles.userBubble
-                  : styles.aiBubble
-
-              ]}
-
-            >
-
-
-              {item.image && (
-
-                <Image
-
-                  source={{
-                    uri: item.image
-                  }}
-
-                  style={styles.messageImage}
-
-                />
-
-              )}
-
-
-              {item.type === "image" &&
-                item.image && (
-
-                  <Image
-
-                    source={{
-                      uri: item.image
-                    }}
-
-                    style={styles.generatedImage}
-
-                  />
-
-                )}
-
-
-              {!!item.text && (
-
-                <Text style={styles.messageText}>
-
-                  {item.text}
-
-                </Text>
-
-              )}
-
-
-              {item.role === "assistant" &&
-                item.type === "text" && (
-
-                  <TouchableOpacity
-
-                    onPress={() =>
-                      speakMessage(item.text)
-                    }
-
-                    style={styles.speakButton}
-
-                  >
-
-                    <Text style={styles.speakText}>
-
-                      🔊 Listen
-
-                    </Text>
-
-                  </TouchableOpacity>
-
-                )}
-
-
-            </View>
-
-
-          </View>
-
-        ))}
-
-
-        {loading && (
-
-          <View style={styles.loadingBox}>
-
-            <ActivityIndicator size="small" />
-
-            <Text style={styles.loadingText}>
-
-              Destiny AI is thinking...
-
-            </Text>
-
-          </View>
-
-        )}
-
-
-      </ScrollView>
-
-
-      {/* SELECTED IMAGE */}
-
-      {selectedImage && (
-
-        <View style={styles.previewBox}>
-
-          <Image
-
-            source={{
-              uri: selectedImage
-            }}
-
-            style={styles.previewImage}
-
+      <FlatList
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.messagesContainer}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* LOADING */}
+
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator
+            size="small"
+            color="#D4AF37"
           />
 
-          <TouchableOpacity
-            onPress={() =>
-              setSelectedImage(null)
-            }
-          >
-
-            <Text style={styles.removeText}>
-
-              ✕ Remove
-
-            </Text>
-
-          </TouchableOpacity>
-
+          <Text style={styles.loadingText}>
+            Destiny AI is thinking...
+          </Text>
         </View>
-
       )}
-
 
       {/* INPUT */}
 
       <KeyboardAvoidingView
-
         behavior={
           Platform.OS === "ios"
             ? "padding"
             : undefined
         }
-
       >
-
         <View style={styles.inputContainer}>
-
-
           <TouchableOpacity
+            style={styles.imageButton}
             onPress={pickImage}
-            style={styles.attachButton}
           >
-
-            <Text style={styles.attachText}>
-
+            <Text style={styles.imageButtonText}>
               📎
-
             </Text>
-
           </TouchableOpacity>
-
 
           <TextInput
-
-            value={message}
-
-            onChangeText={setMessage}
-
-            placeholder="Message Destiny AI..."
-
-            placeholderTextColor="#718096"
-
-            multiline
-
             style={styles.input}
-
+            placeholder="Message Destiny AI..."
+            placeholderTextColor="#7D8796"
+            value={input}
+            onChangeText={setInput}
+            multiline
+            maxLength={2000}
           />
 
-
           <TouchableOpacity
-
+            style={[
+              styles.sendButton,
+              (!input.trim() || loading) &&
+                styles.disabledButton,
+            ]}
             onPress={sendMessage}
-
-            disabled={loading}
-
-            style={styles.sendButton}
-
+            disabled={!input.trim() || loading}
           >
-
             <Text style={styles.sendText}>
-
               ➤
-
             </Text>
-
           </TouchableOpacity>
-
-
         </View>
-
-
       </KeyboardAvoidingView>
-
-
     </SafeAreaView>
-
   );
-
 }
 
+/* =========================
+   STYLES
+========================= */
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
-    backgroundColor: "#07111f"
+    backgroundColor: "#07111F",
   },
 
   header: {
     paddingHorizontal: 20,
     paddingVertical: 18,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#17283d"
+    borderBottomColor: "#172235",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
   logo: {
-    color: "#ffffff",
-    fontSize: 25,
-    fontWeight: "bold"
+    color: "#FFFFFF",
+    fontSize: 24,
+    fontWeight: "bold",
   },
 
-  planText: {
-    color: "#8fa3ba",
-    marginTop: 4
+  subtitle: {
+    color: "#8B95A5",
+    fontSize: 12,
+    marginTop: 3,
   },
 
-  newButton: {
-    backgroundColor: "#d4af37",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 22
-  },
-
-  newButtonText: {
-    color: "#07111f",
-    fontWeight: "bold"
-  },
-
-  plans: {
+  onlineContainer: {
     flexDirection: "row",
-    justifyContent: "center",
-    paddingVertical: 10,
-    gap: 8
+    alignItems: "center",
   },
 
-  planButton: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#102238"
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 10,
+    backgroundColor: "#22C55E",
+    marginRight: 6,
   },
 
-  activePlan: {
-    backgroundColor: "#d4af37"
+  onlineText: {
+    color: "#22C55E",
+    fontSize: 12,
   },
 
-  planButtonText: {
-    color: "#9eb0c3",
-    fontWeight: "bold"
-  },
-
-  activePlanText: {
-    color: "#07111f"
-  },
-
-  chat: {
-    flex: 1
-  },
-
-  chatContent: {
+  messagesContainer: {
     padding: 16,
-    paddingBottom: 25
+    paddingBottom: 20,
   },
 
   messageRow: {
-    marginBottom: 14
+    marginBottom: 14,
+    flexDirection: "row",
   },
 
-  userRow: {
-    alignItems: "flex-end"
+  userMessageRow: {
+    justifyContent: "flex-end",
   },
 
-  aiRow: {
-    alignItems: "flex-start"
+  aiMessageRow: {
+    justifyContent: "flex-start",
   },
 
   messageBubble: {
-    maxWidth: "88%",
+    maxWidth: "85%",
     padding: 14,
-    borderRadius: 20
+    borderRadius: 18,
   },
 
   userBubble: {
-    backgroundColor: "#d4af37"
+    backgroundColor: "#1D4ED8",
+    borderBottomRightRadius: 5,
   },
 
   aiBubble: {
-    backgroundColor: "#102238",
+    backgroundColor: "#111C2E",
+    borderBottomLeftRadius: 5,
     borderWidth: 1,
-    borderColor: "#1d3550"
+    borderColor: "#1E2D45",
   },
 
   messageText: {
-    color: "#ffffff",
     fontSize: 16,
-    lineHeight: 23
+    lineHeight: 23,
+  },
+
+  userText: {
+    color: "#FFFFFF",
+  },
+
+  aiText: {
+    color: "#E5E7EB",
   },
 
   messageImage: {
-    width: 220,
-    height: 220,
-    borderRadius: 14,
-    marginBottom: 8
-  },
-
-  generatedImage: {
-    width: 260,
-    height: 260,
-    borderRadius: 14,
-    marginBottom: 10
+    width: 240,
+    height: 240,
+    borderRadius: 12,
+    marginTop: 10,
   },
 
   speakButton: {
     marginTop: 10,
-    alignSelf: "flex-start"
   },
 
   speakText: {
-    color: "#d4af37",
-    fontSize: 13
+    color: "#D4AF37",
+    fontSize: 12,
   },
 
-  loadingBox: {
+  loadingContainer: {
     flexDirection: "row",
-    gap: 10,
     alignItems: "center",
-    padding: 12
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
 
   loadingText: {
-    color: "#8fa3ba"
-  },
-
-  previewBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 15,
-    paddingBottom: 8,
-    gap: 12
-  },
-
-  previewImage: {
-    width: 55,
-    height: 55,
-    borderRadius: 10
-  },
-
-  removeText: {
-    color: "#ff7b7b"
+    color: "#AAB4C3",
+    marginLeft: 10,
+    fontSize: 13,
   },
 
   inputContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    margin: 12,
-    padding: 8,
-    borderRadius: 25,
-    backgroundColor: "#102238",
-    borderWidth: 1,
-    borderColor: "#233a55"
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#172235",
+    backgroundColor: "#091526",
   },
 
-  attachButton: {
-    padding: 10
+  imageButton: {
+    width: 45,
+    height: 45,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  attachText: {
-    fontSize: 21
+  imageButtonText: {
+    fontSize: 22,
   },
 
   input: {
     flex: 1,
-    color: "#ffffff",
-    minHeight: 45,
+    minHeight: 48,
     maxHeight: 120,
-    paddingHorizontal: 8,
-    paddingTop: 10
+    backgroundColor: "#111C2E",
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: "#FFFFFF",
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: "#22324D",
   },
 
   sendButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    justifyContent: "center",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#D4AF37",
     alignItems: "center",
-    backgroundColor: "#d4af37"
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+
+  disabledButton: {
+    opacity: 0.5,
   },
 
   sendText: {
-    fontSize: 21,
+    fontSize: 22,
+    color: "#07111F",
     fontWeight: "bold",
-    color: "#07111f"
-  }
-
+  },
 });
