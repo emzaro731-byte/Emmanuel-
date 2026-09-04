@@ -38,7 +38,7 @@ const FAL_KEY =
 
 const GROQ_MODEL =
   Deno.env.get("GROQ_MODEL") ??
-  "llama-3.3-70b-versatile";
+  "gpt-5 ";
 
 const FAL_IMAGE_MODEL =
   Deno.env.get("FAL_IMAGE_MODEL") ??
