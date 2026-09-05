@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build ChatGPT Clone APK
 
 on:
   workflow_dispatch:
@@ -6,80 +6,217 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    name: Build Release APK
+    name: Build Android Release APK
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
 
     steps:
 
+      # ==========================================
+      # 1. Download repository
+      # ==========================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      # ==========================================
+      # 2. Setup Java
+      # ==========================================
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
+
+      # ==========================================
+      # 3. Setup Node.js
+      # ==========================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
+
+      # ==========================================
+      # 4. Setup Gradle
+      # No gradlew required
+      # ==========================================
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+
+      # ==========================================
+      # 5. Show versions
+      # ==========================================
       - name: Show versions
         run: |
+          echo "======================================"
+          echo "BUILD ENVIRONMENT"
+          echo "======================================"
+
           node --version
           npm --version
           java -version
+          gradle --version
 
+
+      # ==========================================
+      # 6. Clean old Node dependencies
+      # ==========================================
       - name: Remove old dependencies
         run: |
           rm -rf node_modules
           rm -f package-lock.json
 
-      - name: Install JavaScript dependencies
+
+      # ==========================================
+      # 7. Install React Native dependencies
+      # ==========================================
+      - name: Install dependencies
         run: |
           npm install
 
+
+      # ==========================================
+      # 8. Verify React Native
+      # ==========================================
       - name: Verify React Native
         run: |
           node -p "require('react-native/package.json').version"
           node -p "require('react/package.json').version"
 
-      - name: Make Gradle executable
-        run: |
-          chmod +x android/gradlew
 
-      - name: Clean Android build
-        working-directory: android
+      # ==========================================
+      # 9. Check Android project
+      # ==========================================
+      - name: Check Android project
         run: |
-          ./gradlew clean
+          echo "======================================"
+          echo "ANDROID PROJECT"
+          echo "======================================"
 
+          ls -la android
+          echo ""
+          echo "Gradle files:"
+          find android -maxdepth 3 -type f \
+            \( -name "*.gradle" -o -name "*.properties" \) \
+            -print
+
+
+      # ==========================================
+      # 10. Create debug keystore if missing
+      # ==========================================
+      - name: Create Android debug keystore
+        run: |
+          if [ ! -f android/app/debug.keystore ]; then
+
+            echo "Creating debug keystore..."
+
+            keytool -genkeypair -v \
+              -keystore android/app/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+
+          else
+
+            echo "Debug keystore already exists."
+
+          fi
+
+
+      # ==========================================
+      # 11. Create styles.xml if missing
+      # ==========================================
+      - name: Ensure Android styles
+        run: |
+          mkdir -p android/app/src/main/res/values
+
+          if [ ! -f android/app/src/main/res/values/styles.xml ]; then
+
+            cat > android/app/src/main/res/values/styles.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+
+              <style name="AppTheme"
+                  parent="android:style/Theme.Material.Light.NoActionBar">
+
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowActionModeOverlay">true</item>
+                  <item name="android:colorAccent">#10A37F</item>
+                  <item name="android:statusBarColor">#000000</item>
+                  <item name="android:navigationBarColor">#000000</item>
+
+              </style>
+
+          </resources>
+          EOF
+
+          fi
+
+
+      # ==========================================
+      # 12. Build Android Release APK
+      # ==========================================
       - name: Build Release APK
         working-directory: android
         run: |
-          ./gradlew assembleRelease --stacktrace
+          echo "======================================"
+          echo "BUILDING RELEASE APK"
+          echo "======================================"
 
+          gradle clean
+
+          gradle assembleRelease --stacktrace --no-daemon
+
+
+      # ==========================================
+      # 13. Find generated APK
+      # ==========================================
       - name: Find APK
         run: |
-          find android/app/build/outputs/apk/release \
+          echo "======================================"
+          echo "SEARCHING FOR APK"
+          echo "======================================"
+
+          find android/app/build/outputs \
             -type f \
             -name "*.apk" \
             -print
 
-      - name: Rename APK
-        run: |
-          cp android/app/build/outputs/apk/release/app-release.apk \
-             ChatGPTClone.apk
 
+      # ==========================================
+      # 14. Rename APK
+      # ==========================================
+      - name: Prepare APK
+        run: |
+          mkdir -p release
+
+          cp \
+            android/app/build/outputs/apk/release/app-release.apk \
+            release/ChatGPTClone.apk
+
+          echo "APK created:"
+          ls -lh release/ChatGPTClone.apk
+
+
+      # ==========================================
+      # 15. Upload APK to GitHub Actions
+      # ==========================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ChatGPTClone-APK
-          path: ChatGPTClone.apk
+          path: release/ChatGPTClone.apk
           if-no-files-found: error
