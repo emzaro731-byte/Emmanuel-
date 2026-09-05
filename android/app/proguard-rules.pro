@@ -1,8 +1,10 @@
-# React Native
 
+# Add project-specific ProGuard rules here.
+
+# React Native
 -keep class com.facebook.react.** { *; }
 
--keep class com.facebook.hermes.** { *; }
-
--dontwarn com.facebook.react.**
--dontwarn com.facebook.hermes.**
+# Keep JavaScript interface
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
