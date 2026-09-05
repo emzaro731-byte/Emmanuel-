@@ -1,110 +1,110 @@
-name: Setup Destiny AI
+name: Destiny AI Android Build
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-    paths:
-      - "package.json"
-      - ".github/workflows/setup-destiny-ai.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  setup:
+  build-android:
+    name: Build Destiny AI APK
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Download repository
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      # 2. Install Java 17
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
-          node-version: "22"
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
 
-      - name: Show versions
+      # 3. Install Node.js 20
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      # 4. Install Android SDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 5. Install Android SDK components
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      # 6. Install JavaScript dependencies
+      - name: Install npm dependencies
+        run: npm install
+
+      # 7. Check React Native installation
+      - name: Check React Native
         run: |
           node --version
           npm --version
+          npx react-native --version
 
-      - name: Install dependencies
+      # 8. Generate Gradle wrapper if missing
+      - name: Generate Gradle wrapper
+        working-directory: android
         run: |
-          npm install
-
-      - name: Install Destiny AI packages
-        run: |
-          npm install @supabase/supabase-js
-          npm install @react-native-async-storage/async-storage
-          npm install react-native-url-polyfill
-          npm install @expo/vector-icons
-          npm install base64-arraybuffer
-
-      - name: Install Expo packages
-        run: |
-          npx expo install expo-image-picker
-          npx expo install expo-speech
-          npx expo install expo-file-system
-          npx expo install expo-clipboard
-
-      - name: Fix Expo dependencies
-        run: |
-          npx expo install --fix
-
-      - name: Generate package-lock
-        run: |
-          npm install
-
-      - name: Verify package-lock
-        run: |
-          if [ ! -f package-lock.json ]; then
-            echo "❌ package-lock.json was not created"
-            exit 1
-          fi
-
-          echo "✅ package-lock.json created"
-          ls -lh package-lock.json
-
-      - name: Run Expo Doctor
-        run: |
-          npx expo-doctor
-
-      - name: Check installed packages
-        run: |
-          npm list \
-            @supabase/supabase-js \
-            @react-native-async-storage/async-storage \
-            react-native-url-polyfill \
-            @expo/vector-icons \
-            base64-arraybuffer \
-            expo-image-picker \
-            expo-speech \
-            expo-file-system \
-            expo-clipboard \
-            --depth=0
-
-      - name: Commit package files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add package.json package-lock.json
-
-          if git diff --cached --quiet; then
-            echo "✅ No package changes to commit"
+          if [ ! -f gradlew ]; then
+            echo "Gradle wrapper missing. Generating it..."
+            gradle wrapper \
+              --gradle-version 8.13 \
+              --distribution-type bin
           else
-            git commit -m "Setup Destiny AI dependencies"
-            git push
+            echo "Gradle wrapper already exists."
           fi
 
-      - name: Finished
+      # 9. Make Gradle wrapper executable
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      # 10. Show Gradle version
+      - name: Check Gradle
+        working-directory: android
+        run: ./gradlew --version
+
+      # 11. Clean Android project
+      - name: Clean Android build
+        working-directory: android
+        run: ./gradlew clean --no-daemon
+
+      # 12. Build release APK
+      - name: Build release APK
+        working-directory: android
         run: |
-          echo "======================================"
-          echo "✅ DESTINY AI SETUP COMPLETE"
-          echo "======================================"
-          echo "Node: $(node --version)"
-          echo "npm: $(npm --version)"
-          echo "package-lock.json: CREATED"
-          echo "======================================"
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --stacktrace \
+            --info
+
+      # 13. Find generated APK
+      - name: Find APK
+        run: |
+          echo "Searching for APK..."
+          find android/app/build/outputs/apk -type f -name "*.apk" -print
+
+      # 14. Upload APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Destiny-AI-APK
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
