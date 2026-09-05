@@ -2,209 +2,73 @@ name: Build Destiny AI APK
 
 on:
   workflow_dispatch:
-
   push:
     branches:
       - main
 
 jobs:
   build-apk:
-    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
-
-      # ==============================
-      # 1. DOWNLOAD YOUR GITHUB CODE
-      # ==============================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      # ==============================
-      # 2. SETUP NODE.JS
-      # ==============================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
 
-
-      # ==============================
-      # 3. SETUP JAVA
-      # ==============================
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-
-      # ==============================
-      # 4. SETUP ANDROID SDK
-      # ==============================
-      - name: Setup Android SDK
+      - name: Setup Android
         uses: android-actions/setup-android@v3
 
-
-      # ==============================
-      # 5. CHECK PROJECT FILES
-      # ==============================
       - name: Check project files
         run: |
-          echo "=============================="
-          echo "DESTINY AI PROJECT FILES"
-          echo "=============================="
-
+          echo "===== PROJECT ====="
           ls -la
+          echo "===== PACKAGE.JSON ====="
+          cat package.json
 
-          echo ""
-          echo "Checking important files..."
-
-          test -f package.json
-          echo "✅ package.json found"
-
-          test -f App.tsx
-          echo "✅ App.tsx found"
-
-          test -f app.json
-          echo "✅ app.json found"
-
-          test -f index.ts
-          echo "✅ index.ts found"
-
-
-      # ==============================
-      # 6. INSTALL DEPENDENCIES
-      # ==============================
-      - name: Install dependencies
+      - name: Install npm dependencies
         run: npm install
 
-
-      # ==============================
-      # 7. SHOW NODE AND NPM VERSION
-      # ==============================
-      - name: Check Node.js
+      - name: Install Expo packages
         run: |
-          node --version
-          npm --version
+          npx expo install @supabase/supabase-js @react-native-async-storage/async-storage react-native-url-polyfill expo-image-picker expo-speech
 
-
-      # ==============================
-      # 8. CHECK EXPO
-      # ==============================
       - name: Check Expo
+        run: npx expo --version
+
+      - name: Check dependencies
         run: |
-          npx expo --version
+          npm list @supabase/supabase-js || true
+          npm list @react-native-async-storage/async-storage || true
+          npm list react-native-url-polyfill || true
+          npm list expo-image-picker || true
+          npm list expo-speech || true
 
-
-      # ==============================
-      # 9. CHECK BABEL PRESET
-      # ==============================
-      - name: Check Babel
-        run: |
-          npm ls babel-preset-expo || true
-
-
-      # ==============================
-      # 10. CHECK EXPO PROJECT
-      # ==============================
       - name: Expo Doctor
-        run: npx expo-doctor || true
+        run: npx expo-doctor
+        continue-on-error: true
 
-
-      # ==============================
-      # 11. REMOVE OLD ANDROID PROJECT
-      # ==============================
-      - name: Remove old Android project
-        run: |
-          rm -rf android
-          echo "Old Android folder removed."
-
-
-      # ==============================
-      # 12. GENERATE FRESH ANDROID PROJECT
-      # ==============================
       - name: Generate Android project
-        run: |
-          npx expo prebuild \
-            --platform android \
-            --non-interactive
+        run: CI=1 npx expo prebuild --platform android
 
-
-      # ==============================
-      # 13. CHECK ANDROID PROJECT
-      # ==============================
-      - name: Check Android project
-        run: |
-          echo "=============================="
-          echo "ANDROID PROJECT"
-          echo "=============================="
-
-          ls -la android
-
-          test -f android/gradlew
-          echo "✅ Gradle wrapper found"
-
-          test -f android/settings.gradle
-          echo "✅ settings.gradle found"
-
-
-      # ==============================
-      # 14. MAKE GRADLE EXECUTABLE
-      # ==============================
-      - name: Make Gradle executable
-        run: |
-          chmod +x android/gradlew
-
-
-      # ==============================
-      # 15. CLEAN GRADLE BUILD
-      # ==============================
-      - name: Clean Android build
+      - name: Build APK
         working-directory: android
         run: |
-          ./gradlew clean --no-daemon
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
 
-
-      # ==============================
-      # 16. BUILD RELEASE APK
-      # ==============================
-      - name: Build Destiny AI Release APK
-        working-directory: android
-        env:
-          NODE_ENV: production
-        run: |
-          ./gradlew assembleRelease --no-daemon --stacktrace
-
-
-      # ==============================
-      # 17. SHOW GENERATED APK
-      # ==============================
-      - name: Check generated APK
-        run: |
-          echo "=============================="
-          echo "APK OUTPUT"
-          echo "=============================="
-
-          ls -lah android/app/build/outputs/apk/release/
-
-          if [ ! -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            echo "❌ ERROR: APK was not generated!"
-            exit 1
-          fi
-
-          echo ""
-          echo "✅ DESTINY AI APK CREATED SUCCESSFULLY!"
-
-
-      # ==============================
-      # 18. UPLOAD APK
-      # ==============================
-      - name: Upload Destiny AI APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Destiny-AI-APK
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-          retention-days: 30
