@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v5
 
       # ==========================================
-      # 2. SETUP NODE
+      # 2. NODE
       # ==========================================
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -35,18 +35,16 @@ jobs:
           cache: npm
 
       # ==========================================
-      # 3. SHOW VERSIONS
+      # 3. NODE VERSION
       # ==========================================
       - name: Check Node and npm
         run: |
           echo "======================================"
-          echo "NODE / NPM"
+          echo "NODE"
           echo "======================================"
 
           node --version
           npm --version
-
-          echo "======================================"
 
       # ==========================================
       # 4. CHECK EXPO TOKEN
@@ -55,12 +53,9 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          echo "Checking Expo authentication..."
-
           if [ -z "$EXPO_TOKEN" ]; then
             echo "❌ EXPO_TOKEN is missing."
             echo ""
-            echo "Go to:"
             echo "GitHub → Settings → Secrets and variables → Actions"
             echo ""
             echo "Create repository secret:"
@@ -72,7 +67,7 @@ jobs:
           echo "✅ EXPO_TOKEN is available"
 
       # ==========================================
-      # 5. SETUP EXPO + EAS
+      # 5. EXPO + EAS
       # ==========================================
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
@@ -81,27 +76,20 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       # ==========================================
-      # 6. CHECK EAS CLI
+      # 6. EAS VERSION
       # ==========================================
       - name: Check EAS CLI
         run: |
-          echo "======================================"
-          echo "EAS CLI"
-          echo "======================================"
-
           eas --version
 
-          echo "======================================"
-
       # ==========================================
-      # 7. VERIFY EXPO LOGIN
+      # 7. VERIFY EXPO ACCOUNT
       # ==========================================
-      - name: Verify Expo authentication
+      - name: Verify Expo account
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           echo "Checking Expo account..."
-
           eas whoami
 
       # ==========================================
@@ -109,130 +97,91 @@ jobs:
       # ==========================================
       - name: Install dependencies
         run: |
-          echo "Installing npm dependencies..."
-
+          echo "Installing dependencies..."
           npm ci
 
       # ==========================================
-      # 9. VERIFY PROJECT FILES
+      # 9. CHECK PROJECT FILES
       # ==========================================
-      - name: Verify Destiny AI project
+      - name: Check project files
         run: |
           echo "======================================"
-          echo "DESTINY AI PROJECT CHECK"
+          echo "PROJECT FILES"
           echo "======================================"
 
-          if [ ! -f package.json ]; then
-            echo "❌ package.json missing"
-            exit 1
-          fi
-
+          test -f package.json
           echo "✅ package.json"
 
-          if [ ! -f package-lock.json ]; then
-            echo "❌ package-lock.json missing"
-            exit 1
-          fi
-
+          test -f package-lock.json
           echo "✅ package-lock.json"
 
-          if [ ! -f app.json ] && [ ! -f app.config.js ] && [ ! -f app.config.ts ]; then
-            echo "❌ Expo app configuration missing"
-            exit 1
-          fi
-
-          echo "✅ Expo app configuration"
-
-          if [ ! -f eas.json ]; then
-            echo "❌ eas.json missing"
-            echo ""
-            echo "Run eas build:configure locally first."
-            exit 1
-          fi
-
+          test -f eas.json
           echo "✅ eas.json"
 
-          echo "======================================"
+          if [ -f app.json ]; then
+            echo "✅ app.json"
+          elif [ -f app.config.js ]; then
+            echo "✅ app.config.js"
+          elif [ -f app.config.ts ]; then
+            echo "✅ app.config.ts"
+          else
+            echo "❌ Expo app configuration not found"
+            exit 1
+          fi
 
       # ==========================================
-      # 10. DISPLAY EAS CONFIG
+      # 10. VERIFY EAS CONFIGURATION
       # ==========================================
-      - name: Show EAS configuration
+      - name: Verify EAS configuration
         run: |
           echo "======================================"
           echo "EAS CONFIGURATION"
           echo "======================================"
 
-          cat eas.json
+          eas config \
+            --platform android \
+            --profile preview \
+            --non-interactive
 
-          echo ""
+      # ==========================================
+      # 11. CHECK EAS PROJECT
+      # ==========================================
+      - name: Check EAS project
+        run: |
+          echo "======================================"
+          echo "EAS PROJECT"
           echo "======================================"
 
+          eas project:info
+
       # ==========================================
-      # 11. CHECK EAS PROJECT ID
+      # 12. SHOW BUILD CONFIG
       # ==========================================
-      - name: Check EAS project configuration
+      - name: Show eas.json
         run: |
-          echo "Checking EAS project configuration..."
+          echo "======================================"
+          echo "eas.json"
+          echo "======================================"
 
-          node <<'NODE'
-          const fs = require("fs");
-
-          let config = null;
-
-          if (fs.existsSync("app.json")) {
-            config = JSON.parse(fs.readFileSync("app.json", "utf8"));
-          }
-
-          if (!config && fs.existsSync("app.config.json")) {
-            config = JSON.parse(fs.readFileSync("app.config.json", "utf8"));
-          }
-
-          if (!config) {
-            console.log("⚠️ Could not inspect app.json directly.");
-            console.log("Expo configuration may be generated dynamically.");
-            process.exit(0);
-          }
-
-          const expo = config.expo || config;
-
-          const projectId =
-            expo?.extra?.eas?.projectId;
-
-          if (!projectId) {
-            console.error("");
-            console.error("❌ EAS projectId is missing.");
-            console.error("");
-            console.error("Your project has not been linked to EAS.");
-            console.error("");
-            console.error("Run locally:");
-            console.error("  npx eas-cli@latest init");
-            console.error("");
-            process.exit(1);
-          }
-
-          console.log("✅ EAS projectId found:");
-          console.log(projectId);
-          NODE
+          cat eas.json
 
       # ==========================================
-      # 12. RUN EXPO DOCTOR
+      # 13. EXPO DOCTOR
       # ==========================================
       - name: Run Expo Doctor
         run: |
           echo "Running Expo Doctor..."
-
           npx expo-doctor
 
       # ==========================================
-      # 13. BUILD APK
+      # 14. BUILD APK
       # ==========================================
       - name: Build Android APK
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           echo "======================================"
-          echo "DESTINY AI ANDROID APK BUILD"
+          echo "DESTINY AI APK BUILD"
           echo "======================================"
 
           eas build \
@@ -242,7 +191,7 @@ jobs:
             --no-wait
 
       # ==========================================
-      # 14. FINISHED
+      # 15. SUCCESS
       # ==========================================
       - name: Build submitted
         run: |
@@ -251,12 +200,11 @@ jobs:
           echo "✅ DESTINY AI APK BUILD SUBMITTED"
           echo "======================================"
           echo ""
-          echo "EAS is now building your Android APK."
+          echo "EAS is building your Android APK."
           echo ""
-          echo "Open your Expo/EAS dashboard to"
-          echo "monitor the build."
-          echo ""
-          echo "When the build finishes, download"
-          echo "the APK from the EAS build page."
+          echo "Check your Expo dashboard for:"
+          echo "• Build progress"
+          echo "• Build logs"
+          echo "• APK download"
           echo ""
           echo "======================================"
