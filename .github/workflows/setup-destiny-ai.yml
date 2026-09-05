@@ -10,120 +10,96 @@ permissions:
   contents: read
 
 jobs:
-  build-android:
+  build:
     name: Build Destiny AI APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Node.js 20
+      - name: Node 20
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
 
-      - name: Set up Android SDK
+      - name: Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK
+      - name: Install Android packages
         run: |
           yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+      - name: Install npm dependencies
+        run: npm install
 
-      - name: Install JavaScript dependencies
+      - name: Verify project
         run: |
-          npm install
+          echo "===== PROJECT ====="
+          pwd
+          echo "===== ANDROID ====="
+          ls -la android
+          echo "===== WRAPPER DIRECTORY ====="
+          ls -la android/gradle/wrapper || true
 
-      - name: Verify React Native
+      # Install Gradle independently.
+      # This means the build does NOT require android/gradlew
+      # to exist before this point.
+      - name: Install Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Generate Gradle wrapper
+        working-directory: android
         run: |
-          node --version
-          npm --version
-          npx react-native --version
+          echo "===== GENERATING GRADLE WRAPPER ====="
 
-      # Generate Gradle wrapper BEFORE trying to use android/gradlew
-      - name: Create Gradle wrapper
-        run: |
-          cd android
+          gradle wrapper \
+            --gradle-version 8.13 \
+            --distribution-type bin
 
-          if [ -f gradlew ]; then
-            echo "Gradle wrapper already exists."
-          else
-            echo "Gradle wrapper does not exist."
-            echo "Generating Gradle 8.13 wrapper..."
-
-            gradle wrapper \
-              --gradle-version 8.13 \
-              --distribution-type bin
-          fi
-
-          echo "Checking generated wrapper..."
+          echo "===== WRAPPER CREATED ====="
           ls -la
           ls -la gradle/wrapper
 
-      # Verify the wrapper exists
       - name: Verify Gradle wrapper
         run: |
-          if [ ! -f android/gradlew ]; then
-            echo "ERROR: android/gradlew was not generated."
-            echo "Android directory:"
-            find android -maxdepth 3 -type f | sort
-            exit 1
-          fi
+          echo "===== VERIFYING WRAPPER ====="
 
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "ERROR: gradle-wrapper.jar is missing."
-            exit 1
-          fi
+          test -f android/gradlew
+          test -f android/gradlew.bat
+          test -f android/gradle/wrapper/gradle-wrapper.jar
+          test -f android/gradle/wrapper/gradle-wrapper.properties
 
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
-            echo "ERROR: gradle-wrapper.properties is missing."
-            exit 1
-          fi
+          echo "SUCCESS: All Gradle wrapper files exist."
 
-          echo "Gradle wrapper is complete."
-
-      - name: Make Gradle executable
-        run: |
-          chmod +x android/gradlew
-          ls -l android/gradlew
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
 
       - name: Check Gradle
         working-directory: android
-        run: |
-          ./gradlew --version
+        run: ./gradlew --version
 
-      - name: Clean Android project
+      - name: Clean
         working-directory: android
-        run: |
-          ./gradlew clean \
-            --no-daemon \
-            --stacktrace
+        run: ./gradlew clean --no-daemon --stacktrace
 
-      - name: Build release APK
+      - name: Build Release APK
         working-directory: android
-        run: |
-          ./gradlew assembleRelease \
-            --no-daemon \
-            --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Find APK
+      - name: Show APK
         run: |
-          echo "======================================"
-          echo "GENERATED APK FILES"
-          echo "======================================"
-
+          echo "===== APK ====="
           find android/app/build/outputs/apk \
             -type f \
             -name "*.apk" \
