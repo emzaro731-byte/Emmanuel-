@@ -15,31 +15,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Download repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Install Java 17
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
-      # 3. Install Node.js 20
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
 
-      # 4. Install Android SDK
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      # 5. Install Android SDK components
-      - name: Install Android SDK packages
+      - name: Install Android SDK
         run: |
           yes | sdkmanager --licenses || true
 
@@ -48,60 +42,93 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      # 6. Install JavaScript dependencies
-      - name: Install npm dependencies
-        run: npm install
+      - name: Install JavaScript dependencies
+        run: |
+          npm install
 
-      # 7. Check React Native installation
-      - name: Check React Native
+      - name: Verify React Native
         run: |
           node --version
           npm --version
           npx react-native --version
 
-      # 8. Generate Gradle wrapper if missing
-      - name: Generate Gradle wrapper
-        working-directory: android
+      # Generate Gradle wrapper BEFORE trying to use android/gradlew
+      - name: Create Gradle wrapper
         run: |
-          if [ ! -f gradlew ]; then
-            echo "Gradle wrapper missing. Generating it..."
+          cd android
+
+          if [ -f gradlew ]; then
+            echo "Gradle wrapper already exists."
+          else
+            echo "Gradle wrapper does not exist."
+            echo "Generating Gradle 8.13 wrapper..."
+
             gradle wrapper \
               --gradle-version 8.13 \
               --distribution-type bin
-          else
-            echo "Gradle wrapper already exists."
           fi
 
-      # 9. Make Gradle wrapper executable
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+          echo "Checking generated wrapper..."
+          ls -la
+          ls -la gradle/wrapper
 
-      # 10. Show Gradle version
+      # Verify the wrapper exists
+      - name: Verify Gradle wrapper
+        run: |
+          if [ ! -f android/gradlew ]; then
+            echo "ERROR: android/gradlew was not generated."
+            echo "Android directory:"
+            find android -maxdepth 3 -type f | sort
+            exit 1
+          fi
+
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "ERROR: gradle-wrapper.jar is missing."
+            exit 1
+          fi
+
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            echo "ERROR: gradle-wrapper.properties is missing."
+            exit 1
+          fi
+
+          echo "Gradle wrapper is complete."
+
+      - name: Make Gradle executable
+        run: |
+          chmod +x android/gradlew
+          ls -l android/gradlew
+
       - name: Check Gradle
         working-directory: android
-        run: ./gradlew --version
+        run: |
+          ./gradlew --version
 
-      # 11. Clean Android project
-      - name: Clean Android build
+      - name: Clean Android project
         working-directory: android
-        run: ./gradlew clean --no-daemon
+        run: |
+          ./gradlew clean \
+            --no-daemon \
+            --stacktrace
 
-      # 12. Build release APK
       - name: Build release APK
         working-directory: android
         run: |
           ./gradlew assembleRelease \
             --no-daemon \
-            --stacktrace \
-            --info
+            --stacktrace
 
-      # 13. Find generated APK
       - name: Find APK
         run: |
-          echo "Searching for APK..."
-          find android/app/build/outputs/apk -type f -name "*.apk" -print
+          echo "======================================"
+          echo "GENERATED APK FILES"
+          echo "======================================"
 
-      # 14. Upload APK
+          find android/app/build/outputs/apk \
+            -type f \
+            -name "*.apk" \
+            -print
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
