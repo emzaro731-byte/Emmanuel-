@@ -1,13 +1,16 @@
 import "react-native-url-polyfill/auto";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ActivityIndicator,
   Alert,
-  Image as RNImage,
+  Animated,
+  Clipboard,
+  FlatList,
+  Image,
   KeyboardAvoidingView,
-  Linking,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -16,113 +19,154 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import {
-  createClient,
-  Session,
-  User,
-} from "@supabase/supabase-js";
-
 import * as ImagePicker from "expo-image-picker";
 import * as Speech from "expo-speech";
 
+import {
+  Feather,
+  Ionicons,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons";
 
-// ============================================================
-// SUPABASE CONFIGURATION
-// ============================================================
-
-const SUPABASE_URL =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  "https://vihbsfrwnslnmheowkhy.supabase.co";
-
-const SUPABASE_PUBLISHABLE_KEY =
-  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  "sb_publishable_j8gV4-PeFte1RMgl759uQQ_KrM_3vzK";
-
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_PUBLISHABLE_KEY,
-  {
-    auth: {
-      storage: AsyncStorage,
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  }
-);
+import { supabase } from "./lib/supabase";
 
 
-// ============================================================
-// TYPES
-// ============================================================
+/* =========================================================
+   TYPES
+========================================================= */
 
-type Message = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  imageUrl?: string;
-  videoUrl?: string;
-  musicUrl?: string;
-};
-
-type ToolType =
+type Screen =
+  | "auth"
   | "chat"
+  | "studio"
+  | "settings"
+  | "profile";
+
+type AuthMode = "login" | "signup";
+
+type AiMode =
+  | "Chat"
+  | "Code"
+  | "Study"
+  | "Write"
+  | "Creative";
+
+type MediaType =
   | "image"
   | "video"
   | "music";
 
+type MessageRole = "user" | "assistant";
 
-// ============================================================
-// EDGE FUNCTION URLS
-// ============================================================
+type Message = {
+  id: string;
+  role: MessageRole;
+  content: string;
+  createdAt: string;
+  imageUrl?: string;
+};
 
-const FUNCTION_BASE =
-  `${SUPABASE_URL}/functions/v1`;
-
-const DESTINY_AI_URL =
-  `${FUNCTION_BASE}/destiny-ai`;
-
-const GENERATE_IMAGE_URL =
-  `${FUNCTION_BASE}/generate-image`;
-
-const GENERATE_VIDEO_URL =
-  `${FUNCTION_BASE}/generate-video`;
-
-const GENERATE_MUSIC_URL =
-  `${FUNCTION_BASE}/generate-music`;
+type Conversation = {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: string;
+  updatedAt: string;
+  pinned: boolean;
+};
 
 
-// ============================================================
-// APP
-// ============================================================
+/* =========================================================
+   CONSTANTS
+========================================================= */
+
+const STORAGE_KEY = "destiny_ai_conversations_v1";
+
+const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+
+const COLORS = {
+  background: "#050816",
+  surface: "#0C1224",
+  surfaceLight: "#121A31",
+  border: "#202B48",
+
+  primary: "#7C5CFF",
+  primaryDark: "#5638D9",
+
+  blue: "#2D8CFF",
+  cyan: "#22D3EE",
+
+  gold: "#F6C453",
+
+  text: "#FFFFFF",
+  textSecondary: "#9AA6C5",
+  textMuted: "#64708E",
+
+  userBubble: "#6D4AFF",
+  aiBubble: "#121A2D",
+
+  success: "#22C55E",
+  danger: "#EF4444",
+};
+
+
+/* =========================================================
+   APP
+========================================================= */
 
 export default function App() {
 
-  // ----------------------------------------------------------
-  // AUTH
-  // ----------------------------------------------------------
+  const [loading, setLoading] = useState(true);
 
-  const [session, setSession] =
-    useState<Session | null>(null);
-
-  const [user, setUser] =
-    useState<User | null>(null);
-
-  const [authLoading, setAuthLoading] =
-    useState(true);
-
-
-  // ----------------------------------------------------------
-  // AUTH FORM
-  // ----------------------------------------------------------
+  const [screen, setScreen] =
+    useState<Screen>("auth");
 
   const [authMode, setAuthMode] =
-    useState<"login" | "signup">("login");
+    useState<AuthMode>("login");
+
+  const [session, setSession] =
+    useState<any>(null);
+
+
+  /* =======================================================
+     CHAT STATE
+  ======================================================= */
+
+  const [conversations, setConversations] =
+    useState<Conversation[]>([]);
+
+  const [activeConversationId, setActiveConversationId] =
+    useState<string | null>(null);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [aiMode, setAiMode] =
+    useState<AiMode>("Chat");
+
+  const [sending, setSending] =
+    useState(false);
+
+  const [sidebarVisible, setSidebarVisible] =
+    useState(false);
+
+  const [searchText, setSearchText] =
+    useState("");
+
+  const [profileVisible, setProfileVisible] =
+    useState(false);
+
+
+  /* =======================================================
+     AUTH STATE
+  ======================================================= */
 
   const [email, setEmail] =
     useState("");
@@ -130,1254 +174,1249 @@ export default function App() {
   const [password, setPassword] =
     useState("");
 
-  const [authBusy, setAuthBusy] =
+  const [authLoading, setAuthLoading] =
     useState(false);
 
 
-  // ----------------------------------------------------------
-  // CHAT
-  // ----------------------------------------------------------
+  /* =======================================================
+     STUDIO
+  ======================================================= */
 
-  const [messages, setMessages] =
-    useState<Message[]>([]);
-
-  const [input, setInput] =
+  const [studioPrompt, setStudioPrompt] =
     useState("");
 
-  const [busy, setBusy] =
+  const [studioLoading, setStudioLoading] =
     useState(false);
 
-
-  // ----------------------------------------------------------
-  // TOOL
-  // ----------------------------------------------------------
-
-  const [activeTool, setActiveTool] =
-    useState<ToolType>("chat");
-
-
-  // ----------------------------------------------------------
-  // IMAGE
-  // ----------------------------------------------------------
-
   const [selectedImage, setSelectedImage] =
-    useState<ImagePicker.ImagePickerAsset | null>(null);
-
-  const [uploadedImageUrl, setUploadedImageUrl] =
     useState<string | null>(null);
 
 
-  // ----------------------------------------------------------
-  // APP START
-  // ----------------------------------------------------------
+  /* =======================================================
+     ANIMATION
+  ======================================================= */
+
+  const fadeAnim = useRef(
+    new Animated.Value(0)
+  ).current;
+
+
+  /* =======================================================
+     INITIALIZE
+  ======================================================= */
 
   useEffect(() => {
 
-    let mounted = true;
-
-    const loadSession = async () => {
-
-      const {
-        data,
-        error,
-      } = await supabase.auth.getSession();
-
-      if (!mounted) return;
-
-      if (error) {
-        console.log(
-          "Session error:",
-          error.message
-        );
-      }
-
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-
-      setAuthLoading(false);
-    };
-
-    loadSession();
+    loadApp();
 
     const {
-      data: listener,
-    } =
-      supabase.auth.onAuthStateChange(
-        (_event, newSession) => {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
 
-          setSession(newSession);
-          setUser(
-            newSession?.user ?? null
-          );
+        setSession(newSession);
+
+        if (newSession) {
+          setScreen("chat");
+        } else {
+          setScreen("auth");
         }
-      );
 
-    return () => {
+      }
+    );
 
-      mounted = false;
-
-      listener.subscription.unsubscribe();
-
-    };
+    return () => subscription.unsubscribe();
 
   }, []);
 
 
-  // ============================================================
-  // AUTH
-  // ============================================================
-
-  const handleAuth = async () => {
-
-    const cleanEmail =
-      email.trim().toLowerCase();
-
-    if (!cleanEmail) {
-      Alert.alert(
-        "Email required",
-        "Please enter your email address."
-      );
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert(
-        "Password too short",
-        "Your password must contain at least 6 characters."
-      );
-      return;
-    }
+  async function loadApp() {
 
     try {
 
-      setAuthBusy(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (authMode === "login") {
+      setSession(session);
+
+      if (session) {
+        setScreen("chat");
+      }
+
+      await loadConversations();
+
+      Animated.timing(
+        fadeAnim,
+        {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }
+      ).start();
+
+    } catch (error) {
+
+      console.log(error);
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  }
+
+
+  /* =======================================================
+     LOCAL CHAT STORAGE
+  ======================================================= */
+
+  async function loadConversations() {
+
+    try {
+
+      const saved =
+        await AsyncStorage.getItem(
+          STORAGE_KEY
+        );
+
+      if (saved) {
+
+        const data =
+          JSON.parse(saved);
+
+        setConversations(data);
+
+        if (data.length > 0) {
+
+          setActiveConversationId(
+            data[0].id
+          );
+
+        }
+
+      }
+
+    } catch (error) {
+
+      console.log(
+        "Error loading conversations:",
+        error
+      );
+
+    }
+
+  }
+
+
+  async function saveConversations(
+    data: Conversation[]
+  ) {
+
+    try {
+
+      await AsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(data)
+      );
+
+    } catch (error) {
+
+      console.log(
+        "Error saving conversations:",
+        error
+      );
+
+    }
+
+  }
+
+
+  useEffect(() => {
+
+    if (conversations.length >= 0) {
+
+      saveConversations(conversations);
+
+    }
+
+  }, [conversations]);
+
+
+  /* =======================================================
+     ACTIVE CONVERSATION
+  ======================================================= */
+
+  const activeConversation =
+    useMemo(() => {
+
+      return conversations.find(
+        (conversation) =>
+          conversation.id ===
+          activeConversationId
+      );
+
+    }, [
+      conversations,
+      activeConversationId,
+    ]);
+
+
+  /* =======================================================
+     CREATE CHAT
+  ======================================================= */
+
+  function createNewChat() {
+
+    const newConversation: Conversation = {
+
+      id:
+        Date.now().toString(),
+
+      title:
+        "New Conversation",
+
+      messages: [],
+
+      createdAt:
+        new Date().toISOString(),
+
+      updatedAt:
+        new Date().toISOString(),
+
+      pinned: false,
+
+    };
+
+
+    setConversations((previous) => [
+      newConversation,
+      ...previous,
+    ]);
+
+    setActiveConversationId(
+      newConversation.id
+    );
+
+    setSidebarVisible(false);
+
+    setScreen("chat");
+
+  }
+
+
+  /* =======================================================
+     DELETE CHAT
+  ======================================================= */
+
+  function deleteConversation(
+    id: string
+  ) {
+
+    Alert.alert(
+      "Delete Conversation",
+      "Are you sure you want to delete this conversation?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+
+        {
+          text: "Delete",
+          style: "destructive",
+
+          onPress: () => {
+
+            setConversations(
+              (previous) =>
+                previous.filter(
+                  (conversation) =>
+                    conversation.id !== id
+                )
+            );
+
+            if (
+              activeConversationId === id
+            ) {
+
+              setActiveConversationId(
+                null
+              );
+
+            }
+
+          },
+        },
+      ]
+    );
+
+  }
+
+
+  /* =======================================================
+     PIN CHAT
+  ======================================================= */
+
+  function togglePin(
+    id: string
+  ) {
+
+    setConversations(
+      (previous) =>
+        previous.map(
+          (conversation) => {
+
+            if (
+              conversation.id === id
+            ) {
+
+              return {
+                ...conversation,
+                pinned:
+                  !conversation.pinned,
+              };
+
+            }
+
+            return conversation;
+
+          }
+        )
+    );
+
+  }
+
+
+  /* =======================================================
+     AUTH
+  ======================================================= */
+
+  async function handleAuth() {
+
+    if (
+      !email.trim() ||
+      !password.trim()
+    ) {
+
+      Alert.alert(
+        "Missing Information",
+        "Please enter your email and password."
+      );
+
+      return;
+
+    }
+
+
+    setAuthLoading(true);
+
+
+    try {
+
+      if (
+        authMode === "signup"
+      ) {
+
+        const {
+          error,
+        } =
+          await supabase.auth.signUp({
+
+            email:
+              email.trim(),
+
+            password,
+
+          });
+
+
+        if (error) throw error;
+
+
+        Alert.alert(
+          "Account Created",
+          "Your Destiny AI account has been created."
+        );
+
+
+      } else {
 
         const {
           error,
         } =
           await supabase.auth.signInWithPassword({
-            email: cleanEmail,
+
+            email:
+              email.trim(),
+
             password,
+
           });
 
-        if (error) {
-          throw error;
-        }
 
-      } else {
+        if (error) throw error;
 
-        const {
-          data,
-          error,
-        } =
-          await supabase.auth.signUp({
-            email: cleanEmail,
-            password,
-          });
-
-        if (error) {
-          throw error;
-        }
-
-        if (!data.session) {
-
-          Alert.alert(
-            "Account created",
-            "Check your email and confirm your account before signing in."
-          );
-
-          setAuthMode("login");
-
-        } else {
-
-          Alert.alert(
-            "Welcome",
-            "Your Destiny AI account has been created."
-          );
-
-        }
       }
 
-    } catch (error) {
+
+    } catch (error: any) {
 
       Alert.alert(
-        "Authentication error",
-        error instanceof Error
-          ? error.message
-          : "Something went wrong."
+        "Authentication Error",
+        error.message ||
+          "Something went wrong."
       );
 
     } finally {
 
-      setAuthBusy(false);
+      setAuthLoading(false);
 
     }
-  };
+
+  }
 
 
-  // ============================================================
-  // LOGOUT
-  // ============================================================
+  /* =======================================================
+     LOGOUT
+  ======================================================= */
 
-  const logout = async () => {
+  async function logout() {
 
-    const {
-      error,
-    } = await supabase.auth.signOut();
+    Alert.alert(
+      "Logout",
+      "Do you want to logout of Destiny AI?",
+      [
 
-    if (error) {
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
 
-      Alert.alert(
-        "Logout error",
-        error.message
-      );
+        {
+          text: "Logout",
+          style: "destructive",
+
+          onPress: async () => {
+
+            await supabase.auth.signOut();
+
+            setProfileVisible(false);
+
+          },
+
+        },
+
+      ]
+    );
+
+  }
+
+
+  /* =======================================================
+     SEND AI MESSAGE
+  ======================================================= */
+
+  async function sendMessage() {
+
+    const text =
+      message.trim();
+
+
+    if (!text || sending) return;
+
+
+    let conversationId =
+      activeConversationId;
+
+
+    if (!conversationId) {
+
+      createNewChat();
 
       return;
+
     }
 
-    setMessages([]);
-    setInput("");
-    setSelectedImage(null);
-    setUploadedImageUrl(null);
-  };
-
-
-  // ============================================================
-  // NEW CHAT
-  // ============================================================
-
-  const newChat = () => {
-
-    setMessages([]);
-    setInput("");
-    setSelectedImage(null);
-    setUploadedImageUrl(null);
-
-  };
-
-
-  // ============================================================
-  // AUTH HEADER
-  // ============================================================
-
-  const getFunctionHeaders = () => {
-
-    const token =
-      session?.access_token;
-
-    return {
-      "Content-Type": "application/json",
-      "apikey":
-        SUPABASE_PUBLISHABLE_KEY,
-      "Authorization":
-        `Bearer ${token ?? SUPABASE_PUBLISHABLE_KEY}`,
-    };
-
-  };
-
-
-  // ============================================================
-  // AI CHAT
-  // ============================================================
-
-  const sendChat = async (
-    customPrompt?: string
-  ) => {
-
-    const prompt =
-      (customPrompt ?? input).trim();
-
-    if (!prompt) {
-      return;
-    }
-
-    if (!session) {
-
-      Alert.alert(
-        "Sign in required",
-        "Please sign in before using Destiny AI."
-      );
-
-      return;
-    }
 
     const userMessage: Message = {
 
       id:
-        `${Date.now()}-user`,
+        `user-${Date.now()}`,
 
       role:
         "user",
 
       content:
-        prompt,
+        text,
+
+      createdAt:
+        new Date().toISOString(),
 
     };
 
-    const nextMessages =
-      [
-        ...messages,
-        userMessage,
-      ];
 
-    setMessages(nextMessages);
-    setInput("");
-    setBusy(true);
+    setMessage("");
+
+    setSending(true);
+
+
+    setConversations(
+      (previous) =>
+        previous.map(
+          (conversation) => {
+
+            if (
+              conversation.id !==
+              conversationId
+            ) {
+              return conversation;
+            }
+
+
+            const newTitle =
+              conversation.messages.length === 0
+                ? text.slice(0, 35)
+                : conversation.title;
+
+
+            return {
+
+              ...conversation,
+
+              title:
+                newTitle,
+
+              messages: [
+                ...conversation.messages,
+                userMessage,
+              ],
+
+              updatedAt:
+                new Date().toISOString(),
+
+            };
+
+          }
+        )
+    );
+
 
     try {
 
       const response =
         await fetch(
-          DESTINY_AI_URL,
+
+          `${SUPABASE_URL}/functions/v1/destiny-ai`,
+
           {
+
             method: "POST",
-            headers:
-              getFunctionHeaders(),
+
+            headers: {
+
+              "Content-Type":
+                "application/json",
+
+              Authorization:
+                `Bearer ${
+                  session?.access_token || ""
+                }`,
+
+            },
 
             body:
               JSON.stringify({
-                messages:
-                  nextMessages.map(
-                    (message) => ({
-                      role:
-                        message.role,
 
-                      content:
-                        message.content,
-                    })
-                  ),
+                message:
+                  text,
+
+                mode:
+                  aiMode,
+
+                conversation_id:
+                  conversationId,
+
               }),
+
           }
+
         );
+
 
       const data =
         await response.json();
 
+
       if (!response.ok) {
 
         throw new Error(
-          data?.error ||
-          "AI request failed."
+          data.error ||
+            "AI request failed"
         );
 
       }
 
-      if (!data?.success) {
 
-        throw new Error(
-          data?.error ||
-          "AI did not return a response."
-        );
+      const aiText =
+        data.response ||
+        data.message ||
+        "Sorry, I could not generate a response.";
 
-      }
 
-      const assistantMessage:
-        Message = {
+      const assistantMessage: Message = {
 
         id:
-          `${Date.now()}-assistant`,
+          `ai-${Date.now()}`,
 
         role:
           "assistant",
 
         content:
-          data.reply ||
-          "I could not generate a response.",
+          aiText,
+
+        createdAt:
+          new Date().toISOString(),
 
       };
 
-      setMessages((current) => [
-        ...current,
-        assistantMessage,
-      ]);
 
-    } catch (error) {
+      setConversations(
+        (previous) =>
+          previous.map(
+            (conversation) => {
 
-      Alert.alert(
-        "Destiny AI",
-        error instanceof Error
-          ? error.message
-          : "Unable to contact Destiny AI."
+              if (
+                conversation.id !==
+                conversationId
+              ) {
+                return conversation;
+              }
+
+
+              return {
+
+                ...conversation,
+
+                messages: [
+                  ...conversation.messages,
+                  assistantMessage,
+                ],
+
+                updatedAt:
+                  new Date().toISOString(),
+
+              };
+
+            }
+          )
       );
+
+
+    } catch (error: any) {
+
+      const errorMessage: Message = {
+
+        id:
+          `error-${Date.now()}`,
+
+        role:
+          "assistant",
+
+        content:
+          `⚠️ ${error.message || "Unable to connect to Destiny AI."}`,
+
+        createdAt:
+          new Date().toISOString(),
+
+      };
+
+
+      setConversations(
+        (previous) =>
+          previous.map(
+            (conversation) =>
+              conversation.id ===
+              conversationId
+                ? {
+
+                    ...conversation,
+
+                    messages: [
+                      ...conversation.messages,
+                      errorMessage,
+                    ],
+
+                  }
+                : conversation
+          )
+      );
+
 
     } finally {
 
-      setBusy(false);
+      setSending(false);
 
     }
-  };
+
+  }
 
 
-  // ============================================================
-  // TEXT TO SPEECH
-  // ============================================================
+  /* =======================================================
+     COPY MESSAGE
+  ======================================================= */
 
-  const speak = async (
+  function copyMessage(
     text: string
-  ) => {
+  ) {
 
-    try {
+    Clipboard.setString(text);
 
-      await Speech.stop();
+    Alert.alert(
+      "Copied",
+      "Message copied to clipboard."
+    );
 
-      Speech.speak(text, {
-        language: "en-US",
-        pitch: 1,
-        rate: 0.95,
-      });
-
-    } catch (error) {
-
-      console.log(
-        "Speech error:",
-        error
-      );
-
-    }
-  };
+  }
 
 
-  // ============================================================
-  // IMAGE PICKER
-  // ============================================================
+  /* =======================================================
+     SPEAK MESSAGE
+  ======================================================= */
 
-  const pickImage = async () => {
+  function speakMessage(
+    text: string
+  ) {
 
-    try {
+    Speech.stop();
 
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+    Speech.speak(text, {
+      language: "en-US",
+      rate: 0.95,
+    });
 
-      if (!permission.granted) {
+  }
 
-        Alert.alert(
-          "Permission required",
-          "Please allow Destiny AI to access your photos."
-        );
 
-        return;
-      }
+  /* =======================================================
+     PICK IMAGE
+  ======================================================= */
 
-      const result =
-        await ImagePicker.launchImageLibraryAsync({
-          mediaTypes:
-            ["images"],
+  async function pickImage() {
 
-          allowsEditing:
-            true,
+    const permission =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-          quality:
-            0.9,
 
-          selectionLimit:
-            1,
-        });
-
-      if (
-        result.canceled ||
-        !result.assets ||
-        result.assets.length === 0
-      ) {
-        return;
-      }
-
-      const image =
-        result.assets[0];
-
-      setSelectedImage(image);
-
-      setUploadedImageUrl(null);
-
-      setActiveTool("video");
-
-    } catch (error) {
+    if (
+      !permission.granted
+    ) {
 
       Alert.alert(
-        "Image picker error",
-        error instanceof Error
-          ? error.message
-          : "Unable to select image."
+        "Permission Required",
+        "Please allow photo access."
+      );
+
+      return;
+
+    }
+
+
+    const result =
+      await ImagePicker.launchImageLibraryAsync({
+
+        mediaTypes:
+          ["images"],
+
+        allowsEditing:
+          true,
+
+        quality:
+          0.8,
+
+      });
+
+
+    if (!result.canceled) {
+
+      setSelectedImage(
+        result.assets[0].uri
       );
 
     }
-  };
+
+  }
 
 
-  // ============================================================
-  // UPLOAD IMAGE TO SUPABASE STORAGE
-  // ============================================================
+  /* =======================================================
+     UPLOAD IMAGE
+  ======================================================= */
 
-  const uploadImage = async (
-    image: ImagePicker.ImagePickerAsset
-  ): Promise<string> => {
+  async function uploadImageToSupabase(
+    uri: string
+  ) {
 
-    if (!user) {
+    if (!session?.user) {
 
       throw new Error(
-        "You must be signed in."
+        "Please login first."
       );
 
     }
 
+
     const response =
-      await fetch(image.uri);
+      await fetch(uri);
 
-    const arrayBuffer =
-      await response.arrayBuffer();
+    const blob =
+      await response.blob();
 
-    const mimeType =
-      image.mimeType ||
-      "image/jpeg";
 
-    const extension =
-      mimeType.split("/")[1] ||
-      "jpg";
+    const fileName =
+      `${session.user.id}/${Date.now()}.jpg`;
 
-    const safeExtension =
-      extension === "jpeg"
-        ? "jpg"
-        : extension;
-
-    const filePath =
-      `${user.id}/${Date.now()}.${safeExtension}`;
 
     const {
-      data,
       error,
     } =
       await supabase.storage
         .from("Image")
         .upload(
-          filePath,
-          arrayBuffer,
+          fileName,
+          blob,
           {
             contentType:
-              mimeType,
-
-            cacheControl:
-              "3600",
-
+              "image/jpeg",
             upsert:
               false,
           }
         );
 
+
     if (error) {
+
       throw error;
-    }
-
-    if (!data?.path) {
-
-      throw new Error(
-        "Image upload did not return a file path."
-      );
 
     }
+
 
     const {
-      data: publicData,
+      data,
     } =
       supabase.storage
         .from("Image")
-        .getPublicUrl(data.path);
-
-    if (!publicData?.publicUrl) {
-
-      throw new Error(
-        "Unable to create image URL."
-      );
-
-    }
-
-    setUploadedImageUrl(
-      publicData.publicUrl
-    );
-
-    return publicData.publicUrl;
-  };
+        .getPublicUrl(
+          fileName
+        );
 
 
-  // ============================================================
-  // GENERATE IMAGE
-  // ============================================================
+    return data.publicUrl;
 
-  const generateImage = async () => {
+  }
 
-    const prompt =
-      input.trim();
 
-    if (!prompt) {
+  /* =======================================================
+     STUDIO GENERATE
+  ======================================================= */
+
+  async function generateMedia(
+    type: MediaType
+  ) {
+
+    if (!studioPrompt.trim()) {
 
       Alert.alert(
-        "Prompt required",
-        "Describe the image you want."
+        "Enter a Prompt",
+        "Describe what you want Destiny AI to create."
       );
 
       return;
+
     }
 
-    if (!session) {
 
-      Alert.alert(
-        "Sign in required",
-        "Please sign in first."
-      );
+    setStudioLoading(true);
 
-      return;
-    }
-
-    setBusy(true);
-    setInput("");
-
-    setMessages((current) => [
-      ...current,
-      {
-        id:
-          `${Date.now()}-user`,
-
-        role:
-          "user",
-
-        content:
-          `Generate an image: ${prompt}`,
-      },
-    ]);
 
     try {
 
-      const response =
-        await fetch(
-          GENERATE_IMAGE_URL,
-          {
-            method:
-              "POST",
+      let endpoint = "";
 
-            headers:
-              getFunctionHeaders(),
-
-            body:
-              JSON.stringify({
-                prompt,
-              }),
-          }
-        );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-
-        throw new Error(
-          data?.error ||
-          "Image generation failed."
-        );
-
+      if (type === "image") {
+        endpoint =
+          "generate-image";
       }
 
-      const imageUrl =
-        data?.image_url;
-
-      if (!imageUrl) {
-
-        throw new Error(
-          "The image service did not return an image URL."
-        );
-
+      if (type === "video") {
+        endpoint =
+          "generate-video";
       }
 
-      setMessages((current) => [
-        ...current,
-        {
-          id:
-            `${Date.now()}-image`,
-
-          role:
-            "assistant",
-
-          content:
-            "Your image has been generated.",
-
-          imageUrl,
-        },
-      ]);
-
-    } catch (error) {
-
-      Alert.alert(
-        "Image generation",
-        error instanceof Error
-          ? error.message
-          : "Unable to generate image."
-      );
-
-    } finally {
-
-      setBusy(false);
-
-    }
-  };
+      if (type === "music") {
+        endpoint =
+          "generate-music";
+      }
 
 
-  // ============================================================
-  // IMAGE TO VIDEO
-  // ============================================================
+      let uploadedImageUrl:
+        string | null =
+        null;
 
-  const generateVideo = async () => {
 
-    const prompt =
-      input.trim();
+      if (selectedImage) {
 
-    if (!selectedImage) {
-
-      Alert.alert(
-        "Choose an image",
-        "Select an image before generating a video."
-      );
-
-      return;
-    }
-
-    if (!session) {
-
-      Alert.alert(
-        "Sign in required",
-        "Please sign in first."
-      );
-
-      return;
-    }
-
-    setBusy(true);
-
-    try {
-
-      let imageUrl =
-        uploadedImageUrl;
-
-      if (!imageUrl) {
-
-        imageUrl =
-          await uploadImage(
+        uploadedImageUrl =
+          await uploadImageToSupabase(
             selectedImage
           );
+
       }
+
 
       const response =
         await fetch(
-          GENERATE_VIDEO_URL,
-          {
-            method:
-              "POST",
 
-            headers:
-              getFunctionHeaders(),
+          `${SUPABASE_URL}/functions/v1/${endpoint}`,
+
+          {
+
+            method: "POST",
+
+            headers: {
+
+              "Content-Type":
+                "application/json",
+
+              Authorization:
+                `Bearer ${
+                  session?.access_token || ""
+                }`,
+
+            },
 
             body:
               JSON.stringify({
+
                 prompt:
-                  prompt ||
-                  "Create a cinematic video from this image.",
+                  studioPrompt,
 
                 image_url:
-                  imageUrl,
+                  uploadedImageUrl,
+
               }),
+
           }
+
         );
+
 
       const data =
         await response.json();
 
-      if (!response.ok) {
-
-        throw new Error(
-          data?.error ||
-          "Video generation failed."
-        );
-
-      }
-
-      const videoUrl =
-        findMediaUrl(
-          data?.data,
-          "video"
-        );
-
-      setMessages((current) => [
-        ...current,
-        {
-          id:
-            `${Date.now()}-video`,
-
-          role:
-            "assistant",
-
-          content:
-            videoUrl
-              ? "Your video has been generated."
-              : "The video request was accepted, but the service did not return a direct video URL yet.",
-
-          videoUrl:
-            videoUrl || undefined,
-        },
-      ]);
-
-      setInput("");
-
-      if (!videoUrl) {
-
-        Alert.alert(
-          "Video request submitted",
-          "The video service did not return a direct video URL. Check the function response/model configuration."
-        );
-
-      }
-
-    } catch (error) {
-
-      Alert.alert(
-        "Video generation",
-        error instanceof Error
-          ? error.message
-          : "Unable to generate video."
-      );
-
-    } finally {
-
-      setBusy(false);
-
-    }
-  };
-
-
-  // ============================================================
-  // MUSIC GENERATION
-  // ============================================================
-
-  const generateMusic = async () => {
-
-    const prompt =
-      input.trim();
-
-    if (!prompt) {
-
-      Alert.alert(
-        "Prompt required",
-        "Describe the music you want."
-      );
-
-      return;
-    }
-
-    if (!session) {
-
-      Alert.alert(
-        "Sign in required",
-        "Please sign in first."
-      );
-
-      return;
-    }
-
-    setBusy(true);
-    setInput("");
-
-    setMessages((current) => [
-      ...current,
-      {
-        id:
-          `${Date.now()}-music-user`,
-
-        role:
-          "user",
-
-        content:
-          `Generate music: ${prompt}`,
-      },
-    ]);
-
-    try {
-
-      const response =
-        await fetch(
-          GENERATE_MUSIC_URL,
-          {
-            method:
-              "POST",
-
-            headers:
-              getFunctionHeaders(),
-
-            body:
-              JSON.stringify({
-                prompt,
-              }),
-          }
-        );
-
-      const data =
-        await response.json();
 
       if (!response.ok) {
 
         throw new Error(
-          data?.error ||
-          "Music generation failed."
+          data.error ||
+            "Generation failed"
         );
 
       }
 
-      const musicUrl =
-        findMediaUrl(
-          data?.data,
-          "audio"
-        );
-
-      setMessages((current) => [
-        ...current,
-        {
-          id:
-            `${Date.now()}-music`,
-
-          role:
-            "assistant",
-
-          content:
-            musicUrl
-              ? "Your music has been generated."
-              : "The music request was accepted, but no direct audio URL was returned.",
-
-          musicUrl:
-            musicUrl || undefined,
-        },
-      ]);
-
-      if (!musicUrl) {
-
-        Alert.alert(
-          "Music request submitted",
-          "The function did not return a direct audio URL."
-        );
-
-      }
-
-    } catch (error) {
 
       Alert.alert(
-        "Music generation",
-        error instanceof Error
-          ? error.message
-          : "Unable to generate music."
+        "Generation Started 🚀",
+        data.message ||
+          "Your creation request was sent successfully."
+      );
+
+
+      setStudioPrompt("");
+
+      setSelectedImage(null);
+
+
+    } catch (error: any) {
+
+      Alert.alert(
+        "Generation Error",
+        error.message ||
+          "Something went wrong."
       );
 
     } finally {
 
-      setBusy(false);
+      setStudioLoading(false);
 
     }
-  };
+
+  }
 
 
-  // ============================================================
-  // RUN ACTIVE TOOL
-  // ============================================================
+  /* =======================================================
+     FILTERED CONVERSATIONS
+  ======================================================= */
 
-  const runTool = async () => {
-
-    if (activeTool === "chat") {
-      await sendChat();
-      return;
-    }
-
-    if (activeTool === "image") {
-      await generateImage();
-      return;
-    }
-
-    if (activeTool === "video") {
-      await generateVideo();
-      return;
-    }
-
-    if (activeTool === "music") {
-      await generateMusic();
-      return;
-    }
-  };
+  const filteredConversations =
+    conversations
+      .filter(
+        (conversation) =>
+          conversation.title
+            .toLowerCase()
+            .includes(
+              searchText.toLowerCase()
+            )
+      )
+      .sort(
+        (a, b) =>
+          Number(b.pinned) -
+          Number(a.pinned)
+      );
 
 
-  // ============================================================
-  // SUGGESTIONS
-  // ============================================================
+  /* =======================================================
+     LOADING SCREEN
+  ======================================================= */
 
-  const suggestions =
-    useMemo(
-      () => {
-
-        if (activeTool === "image") {
-
-          return [
-            "A futuristic city at night",
-            "A luxury car in Lagos",
-            "A cinematic African landscape",
-          ];
-
-        }
-
-        if (activeTool === "video") {
-
-          return [
-            "Make the camera slowly move forward",
-            "Create a cinematic camera movement",
-            "Make the scene feel realistic",
-          ];
-
-        }
-
-        if (activeTool === "music") {
-
-          return [
-            "Cinematic inspirational music",
-            "Afrobeat instrumental",
-            "Peaceful piano background music",
-          ];
-
-        }
-
-        return [
-          "Explain quantum physics simply",
-          "Help me build my website",
-          "Write a professional CV",
-        ];
-
-      },
-      [activeTool]
-    );
-
-
-  // ============================================================
-  // LOADING SCREEN
-  // ============================================================
-
-  if (authLoading) {
+  if (loading) {
 
     return (
-      <SafeAreaView
-        style={styles.loadingScreen}
-      >
+
+      <View style={styles.loadingScreen}>
 
         <StatusBar
           barStyle="light-content"
         />
 
-        <View
-          style={styles.logoCircle}
-        >
-          <Text
-            style={styles.logoText}
-          >
-            D
-          </Text>
+        <View style={styles.logoLarge}>
+
+          <Ionicons
+            name="sparkles"
+            size={42}
+            color="#FFFFFF"
+          />
+
         </View>
 
-        <Text
-          style={styles.loadingTitle}
-        >
-          Destiny AI
+        <Text style={styles.loadingTitle}>
+          DESTINY AI
+        </Text>
+
+        <Text style={styles.loadingSubtitle}>
+          Your intelligent future
         </Text>
 
         <ActivityIndicator
           size="large"
-          style={styles.loader}
+          color={COLORS.primary}
+          style={{ marginTop: 30 }}
         />
 
-      </SafeAreaView>
+      </View>
+
     );
+
   }
 
 
-  // ============================================================
-  // AUTH SCREEN
-  // ============================================================
+  /* =======================================================
+     AUTH SCREEN
+  ======================================================= */
 
-  if (!session) {
+  if (screen === "auth") {
 
     return (
+
       <SafeAreaView
-        style={styles.container}
+        style={styles.authContainer}
       >
 
         <StatusBar
           barStyle="light-content"
         />
 
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={
-            Platform.OS === "ios"
-              ? "padding"
-              : undefined
+
+        <ScrollView
+          contentContainerStyle={
+            styles.authScroll
           }
         >
 
-          <ScrollView
-            contentContainerStyle={
-              styles.authScroll
-            }
-            keyboardShouldPersistTaps="handled"
-          >
 
-            <View
-              style={styles.authLogo}
+          <View style={styles.authLogo}>
+
+            <Ionicons
+              name="sparkles"
+              size={40}
+              color="#FFFFFF"
+            />
+
+          </View>
+
+
+          <Text style={styles.authTitle}>
+            Destiny AI
+          </Text>
+
+
+          <Text style={styles.authSubtitle}>
+
+            Your intelligent companion for
+            creating, learning and building.
+
+          </Text>
+
+
+          <View style={styles.authCard}>
+
+
+            <Text style={styles.authCardTitle}>
+
+              {authMode === "login"
+                ? "Welcome back"
+                : "Create account"}
+
+            </Text>
+
+
+            <Text style={styles.authCardSubtitle}>
+
+              {authMode === "login"
+                ? "Login to continue to Destiny AI"
+                : "Start your Destiny AI journey"}
+
+            </Text>
+
+
+            <TextInput
+
+              value={email}
+
+              onChangeText={setEmail}
+
+              placeholder="Email address"
+
+              placeholderTextColor={
+                COLORS.textMuted
+              }
+
+              keyboardType="email-address"
+
+              autoCapitalize="none"
+
+              style={styles.authInput}
+
+            />
+
+
+            <TextInput
+
+              value={password}
+
+              onChangeText={setPassword}
+
+              placeholder="Password"
+
+              placeholderTextColor={
+                COLORS.textMuted
+              }
+
+              secureTextEntry
+
+              style={styles.authInput}
+
+            />
+
+
+            <TouchableOpacity
+
+              onPress={handleAuth}
+
+              disabled={authLoading}
+
+              style={styles.authButton}
+
             >
 
-              <View
-                style={styles.logoCircle}
-              >
-                <Text
-                  style={styles.logoText}
-                >
-                  D
-                </Text>
-              </View>
+              {authLoading ? (
 
-              <Text
-                style={styles.brand}
-              >
-                Destiny AI
-              </Text>
+                <ActivityIndicator
+                  color="#FFFFFF"
+                />
 
-              <Text
-                style={styles.tagline}
-              >
-                Your intelligent creative companion
-              </Text>
+              ) : (
 
-            </View>
+                <Text style={styles.authButtonText}>
 
-
-            <View
-              style={styles.authCard}
-            >
-
-              <Text
-                style={styles.authTitle}
-              >
-                {authMode === "login"
-                  ? "Welcome back"
-                  : "Create your account"}
-              </Text>
-
-              <Text
-                style={styles.authSubtitle}
-              >
-                {authMode === "login"
-                  ? "Sign in to continue to Destiny AI."
-                  : "Create an account to start using Destiny AI."}
-              </Text>
-
-
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email address"
-                placeholderTextColor="#6f7890"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.input}
-              />
-
-
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password"
-                placeholderTextColor="#6f7890"
-                secureTextEntry
-                style={styles.input}
-              />
-
-
-              <Pressable
-                style={[
-                  styles.primaryButton,
-                  authBusy &&
-                    styles.disabledButton,
-                ]}
-                onPress={handleAuth}
-                disabled={authBusy}
-              >
-
-                {authBusy ? (
-                  <ActivityIndicator
-                    color="#07111f"
-                  />
-                ) : (
-                  <Text
-                    style={styles.primaryButtonText}
-                  >
-                    {authMode === "login"
-                      ? "Sign In"
-                      : "Create Account"}
-                  </Text>
-                )}
-
-              </Pressable>
-
-
-              <Pressable
-                style={styles.switchAuth}
-                onPress={() => {
-
-                  setAuthMode(
-                    authMode === "login"
-                      ? "signup"
-                      : "login"
-                  );
-
-                }}
-              >
-
-                <Text
-                  style={styles.switchText}
-                >
                   {authMode === "login"
-                    ? "Don't have an account? "
-                    : "Already have an account? "}
+                    ? "Login"
+                    : "Create Account"}
 
-                  <Text
-                    style={styles.switchAccent}
-                  >
-                    {authMode === "login"
-                      ? "Create one"
-                      : "Sign in"}
-                  </Text>
                 </Text>
 
-              </Pressable>
+              )}
 
-            </View>
+            </TouchableOpacity>
 
-          </ScrollView>
 
-        </KeyboardAvoidingView>
+            <TouchableOpacity
+
+              onPress={() =>
+
+                setAuthMode(
+                  authMode === "login"
+                    ? "signup"
+                    : "login"
+                )
+
+              }
+
+              style={styles.switchAuth}
+
+            >
+
+              <Text
+                style={styles.switchAuthText}
+              >
+
+                {authMode === "login"
+                  ? "Don't have an account? "
+                  : "Already have an account? "}
+
+              </Text>
+
+              <Text
+                style={styles.switchAuthLink}
+              >
+
+                {authMode === "login"
+                  ? "Create Account"
+                  : "Login"}
+
+              </Text>
+
+            </TouchableOpacity>
+
+
+          </View>
+
+        </ScrollView>
 
       </SafeAreaView>
+
     );
+
   }
 
 
-  // ============================================================
-  // MAIN APP
-  // ============================================================
+  /* =======================================================
+     MAIN APP
+  ======================================================= */
 
   return (
 
-    <SafeAreaView
-      style={styles.container}
-    >
+    <SafeAreaView style={styles.container}>
 
       <StatusBar
         barStyle="light-content"
@@ -1386,1273 +1425,2351 @@ export default function App() {
 
       {/* HEADER */}
 
-      <View
-        style={styles.header}
-      >
+      <View style={styles.header}>
 
-        <View
-          style={styles.headerLeft}
+
+        <TouchableOpacity
+          onPress={() =>
+            setSidebarVisible(true)
+          }
+          style={styles.headerButton}
         >
 
-          <View
-            style={styles.smallLogo}
-          >
-            <Text
-              style={styles.smallLogoText}
-            >
-              D
-            </Text>
-          </View>
+          <Feather
+            name="menu"
+            size={24}
+            color={COLORS.text}
+          />
 
-          <View>
-
-            <Text
-              style={styles.headerTitle}
-            >
-              Destiny AI
-            </Text>
-
-            <Text
-              style={styles.headerSubtitle}
-            >
-              {user?.email || "AI assistant"}
-            </Text>
-
-          </View>
-
-        </View>
+        </TouchableOpacity>
 
 
-        <View
-          style={styles.headerActions}
+        <TouchableOpacity
+          onPress={() =>
+            setScreen("chat")
+          }
+          style={styles.brand}
         >
 
-          <Pressable
-            style={styles.headerButton}
-            onPress={newChat}
-          >
-            <Text
-              style={styles.headerButtonText}
-            >
-              +
-            </Text>
-          </Pressable>
+          <View style={styles.brandIcon}>
+
+            <Ionicons
+              name="sparkles"
+              size={17}
+              color="#FFFFFF"
+            />
+
+          </View>
+
+          <Text style={styles.brandText}>
+            Destiny AI
+          </Text>
+
+        </TouchableOpacity>
 
 
-          <Pressable
-            style={styles.headerButton}
-            onPress={logout}
-          >
-            <Text
-              style={styles.headerButtonText}
-            >
-              ↪
-            </Text>
-          </Pressable>
+        <TouchableOpacity
+          onPress={() =>
+            setProfileVisible(true)
+          }
+          style={styles.profileButton}
+        >
 
-        </View>
+          <Ionicons
+            name="person"
+            size={20}
+            color="#FFFFFF"
+          />
+
+        </TouchableOpacity>
 
       </View>
 
 
-      {/* CHAT */}
+      {/* CHAT SCREEN */}
 
-      <ScrollView
-        style={styles.chat}
-        contentContainerStyle={
-          styles.chatContent
-        }
-        keyboardShouldPersistTaps="handled"
+      {screen === "chat" && (
+
+        <ChatScreen
+          conversation={activeConversation}
+          message={message}
+          setMessage={setMessage}
+          sending={sending}
+          sendMessage={sendMessage}
+          aiMode={aiMode}
+          setAiMode={setAiMode}
+          copyMessage={copyMessage}
+          speakMessage={speakMessage}
+          createNewChat={createNewChat}
+          pickImage={pickImage}
+        />
+
+      )}
+
+
+      {/* STUDIO SCREEN */}
+
+      {screen === "studio" && (
+
+        <StudioScreen
+
+          studioPrompt={studioPrompt}
+
+          setStudioPrompt={
+            setStudioPrompt
+          }
+
+          selectedImage={
+            selectedImage
+          }
+
+          pickImage={pickImage}
+
+          studioLoading={
+            studioLoading
+          }
+
+          generateMedia={
+            generateMedia
+          }
+
+        />
+
+      )}
+
+
+      {/* SETTINGS SCREEN */}
+
+      {screen === "settings" && (
+
+        <SettingsScreen
+          email={session?.user?.email}
+        />
+
+      )}
+
+
+      {/* BOTTOM NAVIGATION */}
+
+      <View style={styles.bottomNav}>
+
+
+        <NavButton
+          icon="chatbubble-ellipses"
+          label="Chat"
+          active={screen === "chat"}
+          onPress={() =>
+            setScreen("chat")
+          }
+        />
+
+
+        <NavButton
+          icon="color-wand"
+          label="Create"
+          active={screen === "studio"}
+          onPress={() =>
+            setScreen("studio")
+          }
+        />
+
+
+        <NavButton
+          icon="settings"
+          label="Settings"
+          active={screen === "settings"}
+          onPress={() =>
+            setScreen("settings")
+          }
+        />
+
+
+      </View>
+
+
+      {/* SIDEBAR */}
+
+      <Modal
+        visible={sidebarVisible}
+        transparent
+        animationType="slide"
       >
 
-        {messages.length === 0 && (
+        <View style={styles.sidebarOverlay}>
 
-          <View
-            style={styles.welcome}
+
+          <View style={styles.sidebar}>
+
+
+            <View style={styles.sidebarHeader}>
+
+
+              <Text
+                style={styles.sidebarTitle}
+              >
+                Conversations
+              </Text>
+
+
+              <TouchableOpacity
+                onPress={() =>
+                  setSidebarVisible(false)
+                }
+              >
+
+                <Ionicons
+                  name="close"
+                  size={26}
+                  color="#FFFFFF"
+                />
+
+              </TouchableOpacity>
+
+
+            </View>
+
+
+            <TouchableOpacity
+
+              onPress={createNewChat}
+
+              style={styles.newChatButton}
+
+            >
+
+              <Ionicons
+                name="add"
+                size={22}
+                color="#FFFFFF"
+              />
+
+              <Text
+                style={styles.newChatText}
+              >
+                New Chat
+              </Text>
+
+            </TouchableOpacity>
+
+
+            <View
+              style={styles.searchBox}
+            >
+
+              <Ionicons
+                name="search"
+                size={18}
+                color={COLORS.textMuted}
+              />
+
+              <TextInput
+
+                value={searchText}
+
+                onChangeText={
+                  setSearchText
+                }
+
+                placeholder="Search chats"
+
+                placeholderTextColor={
+                  COLORS.textMuted
+                }
+
+                style={styles.searchInput}
+
+              />
+
+            </View>
+
+
+            <FlatList
+
+              data={
+                filteredConversations
+              }
+
+              keyExtractor={(item) =>
+                item.id
+              }
+
+              renderItem={({ item }) => (
+
+                <TouchableOpacity
+
+                  onPress={() => {
+
+                    setActiveConversationId(
+                      item.id
+                    );
+
+                    setScreen("chat");
+
+                    setSidebarVisible(false);
+
+                  }}
+
+                  style={styles.conversationItem}
+
+                >
+
+                  <View
+                    style={{
+                      flex: 1,
+                    }}
+                  >
+
+                    <Text
+                      numberOfLines={1}
+                      style={
+                        styles.conversationTitle
+                      }
+                    >
+
+                      {item.pinned
+                        ? "📌 "
+                        : ""}
+
+                      {item.title}
+
+                    </Text>
+
+                  </View>
+
+
+                  <TouchableOpacity
+                    onPress={() =>
+                      togglePin(item.id)
+                    }
+                  >
+
+                    <Ionicons
+                      name={
+                        item.pinned
+                          ? "bookmark"
+                          : "bookmark-outline"
+                      }
+                      size={18}
+                      color={COLORS.gold}
+                    />
+
+                  </TouchableOpacity>
+
+
+                  <TouchableOpacity
+                    onPress={() =>
+                      deleteConversation(
+                        item.id
+                      )
+                    }
+                    style={{
+                      marginLeft: 12,
+                    }}
+                  >
+
+                    <Ionicons
+                      name="trash-outline"
+                      size={18}
+                      color={
+                        COLORS.textMuted
+                      }
+                    />
+
+                  </TouchableOpacity>
+
+
+                </TouchableOpacity>
+
+              )}
+
+              ListEmptyComponent={
+
+                <View
+                  style={styles.emptyHistory}
+                >
+
+                  <Ionicons
+                    name="chatbubbles-outline"
+                    size={45}
+                    color={
+                      COLORS.textMuted
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.emptyHistoryText
+                    }
+                  >
+                    No conversations yet
+                  </Text>
+
+                </View>
+
+              }
+
+            />
+
+
+            <View
+              style={styles.sidebarFooter}
+            >
+
+              <Text
+                style={styles.sidebarEmail}
+                numberOfLines={1}
+              >
+
+                {session?.user?.email ||
+                  "Destiny AI User"}
+
+              </Text>
+
+            </View>
+
+
+          </View>
+
+        </View>
+
+      </Modal>
+
+
+      {/* PROFILE MODAL */}
+
+      <Modal
+        visible={profileVisible}
+        transparent
+        animationType="fade"
+      >
+
+        <Pressable
+          style={styles.profileOverlay}
+          onPress={() =>
+            setProfileVisible(false)
+          }
+        >
+
+          <Pressable
+            style={styles.profileMenu}
           >
+
+
+            <View
+              style={styles.profileAvatarLarge}
+            >
+
+              <Ionicons
+                name="person"
+                size={26}
+                color="#FFFFFF"
+              />
+
+            </View>
+
+
+            <Text
+              style={styles.profileEmail}
+            >
+
+              {session?.user?.email ||
+                "Destiny AI User"}
+
+            </Text>
+
+
+            <ProfileOption
+              icon="person-outline"
+              label="Profile"
+              onPress={() => {
+                setProfileVisible(false);
+                setScreen("profile");
+              }}
+            />
+
+
+            <ProfileOption
+              icon="settings-outline"
+              label="Settings"
+              onPress={() => {
+                setProfileVisible(false);
+                setScreen("settings");
+              }}
+            />
+
+
+            <ProfileOption
+              icon="log-out-outline"
+              label="Logout"
+              danger
+              onPress={logout}
+            />
+
+
+          </Pressable>
+
+        </Pressable>
+
+      </Modal>
+
+
+    </SafeAreaView>
+
+  );
+
+}
+
+
+/* =========================================================
+   CHAT SCREEN
+========================================================= */
+
+function ChatScreen({
+
+  conversation,
+
+  message,
+
+  setMessage,
+
+  sending,
+
+  sendMessage,
+
+  aiMode,
+
+  setAiMode,
+
+  copyMessage,
+
+  speakMessage,
+
+  createNewChat,
+
+  pickImage,
+
+}: any) {
+
+
+  const modes: AiMode[] = [
+
+    "Chat",
+
+    "Code",
+
+    "Study",
+
+    "Write",
+
+    "Creative",
+
+  ];
+
+
+  return (
+
+    <KeyboardAvoidingView
+
+      style={{ flex: 1 }}
+
+      behavior={
+        Platform.OS === "ios"
+          ? "padding"
+          : undefined
+      }
+
+    >
+
+
+      <View style={styles.chatContainer}>
+
+
+        {!conversation ||
+        conversation.messages.length === 0 ? (
+
+          <ScrollView
+            contentContainerStyle={
+              styles.welcomeContent
+            }
+          >
+
 
             <View
               style={styles.welcomeLogo}
             >
-              <Text
-                style={styles.welcomeLogoText}
-              >
-                D
-              </Text>
+
+              <Ionicons
+                name="sparkles"
+                size={38}
+                color="#FFFFFF"
+              />
+
             </View>
+
 
             <Text
               style={styles.welcomeTitle}
             >
-              What can I help you create?
+              How can I help you?
             </Text>
+
 
             <Text
               style={styles.welcomeSubtitle}
             >
-              Chat, generate images, animate photos,
-              and create music with Destiny AI.
+
+              Ask Destiny AI anything. Create,
+              learn, write, code and explore.
+
             </Text>
 
-          </View>
-
-        )}
-
-
-        {messages.map(
-          (message) => (
 
             <View
-              key={message.id}
-              style={[
-                styles.messageRow,
-                message.role === "user"
-                  ? styles.userRow
-                  : styles.assistantRow,
-              ]}
+              style={styles.modeGrid}
             >
 
-              <View
-                style={[
-                  styles.messageBubble,
-                  message.role === "user"
-                    ? styles.userBubble
-                    : styles.assistantBubble,
-                ]}
-              >
-
-                <Text
-                  style={[
-                    styles.messageText,
-                    message.role === "user"
-                      ? styles.userMessageText
-                      : styles.assistantMessageText,
-                  ]}
-                >
-                  {message.content}
-                </Text>
+              <QuickAction
+                icon="code-slash"
+                label="Code"
+                onPress={() =>
+                  setAiMode("Code")
+                }
+              />
 
 
-                {message.imageUrl && (
-
-                  <Pressable
-                    onPress={() =>
-                      Linking.openURL(
-                        message.imageUrl!
-                      )
-                    }
-                  >
-
-                    <RNImage
-                      source={{
-                        uri:
-                          message.imageUrl,
-                      }}
-                      style={
-                        styles.generatedImage
-                      }
-                      resizeMode="cover"
-                    />
-
-                    <Text
-                      style={
-                        styles.mediaLink
-                      }
-                    >
-                      Open generated image
-                    </Text>
-
-                  </Pressable>
-
-                )}
+              <QuickAction
+                icon="school"
+                label="Study"
+                onPress={() =>
+                  setAiMode("Study")
+                }
+              />
 
 
-                {message.videoUrl && (
-
-                  <Pressable
-                    onPress={() =>
-                      Linking.openURL(
-                        message.videoUrl!
-                      )
-                    }
-                  >
-
-                    <View
-                      style={
-                        styles.mediaButton
-                      }
-                    >
-
-                      <Text
-                        style={
-                          styles.mediaButtonText
-                        }
-                      >
-                        ▶ Open Video
-                      </Text>
-
-                    </View>
-
-                  </Pressable>
-
-                )}
+              <QuickAction
+                icon="create"
+                label="Write"
+                onPress={() =>
+                  setAiMode("Write")
+                }
+              />
 
 
-                {message.musicUrl && (
+              <QuickAction
+                icon="color-wand"
+                label="Create"
+                onPress={() =>
+                  setAiMode("Creative")
+                }
+              />
 
-                  <Pressable
-                    onPress={() =>
-                      Linking.openURL(
-                        message.musicUrl!
-                      )
-                    }
-                  >
-
-                    <View
-                      style={
-                        styles.mediaButton
-                      }
-                    >
-
-                      <Text
-                        style={
-                          styles.mediaButtonText
-                        }
-                      >
-                        ♪ Open Music
-                      </Text>
-
-                    </View>
-
-                  </Pressable>
-
-                )}
-
-
-                {message.role ===
-                  "assistant" && (
-
-                  <Pressable
-                    style={
-                      styles.speakButton
-                    }
-                    onPress={() =>
-                      speak(
-                        message.content
-                      )
-                    }
-                  >
-
-                    <Text
-                      style={
-                        styles.speakText
-                      }
-                    >
-                      🔊 Listen
-                    </Text>
-
-                  </Pressable>
-
-                )}
-
-              </View>
 
             </View>
 
-          )
+
+          </ScrollView>
+
+
+        ) : (
+
+
+          <FlatList
+
+            data={
+              conversation.messages
+            }
+
+            keyExtractor={(item) =>
+              item.id
+            }
+
+            contentContainerStyle={
+              styles.messagesList
+            }
+
+            renderItem={({ item }) => (
+
+              <MessageBubble
+
+                message={item}
+
+                copyMessage={
+                  copyMessage
+                }
+
+                speakMessage={
+                  speakMessage
+                }
+
+              />
+
+            )}
+
+            ListFooterComponent={
+
+              sending ? (
+
+                <View
+                  style={
+                    styles.typingContainer
+                  }
+                >
+
+                  <ActivityIndicator
+                    color={COLORS.primary}
+                  />
+
+                  <Text
+                    style={styles.typingText}
+                  >
+
+                    Destiny AI is thinking...
+
+                  </Text>
+
+                </View>
+
+              ) : null
+
+            }
+
+          />
+
+
         )}
 
 
-        {busy && (
+        {/* AI MODE */}
 
-          <View
-            style={
-              styles.typingBubble
-            }
+        <ScrollView
+
+          horizontal
+
+          showsHorizontalScrollIndicator={
+            false
+          }
+
+          contentContainerStyle={
+            styles.modeSelector
+          }
+
+        >
+
+          {modes.map((mode) => (
+
+            <TouchableOpacity
+
+              key={mode}
+
+              onPress={() =>
+                setAiMode(mode)
+              }
+
+              style={[
+                styles.modeButton,
+
+                aiMode === mode &&
+                  styles.modeButtonActive,
+
+              ]}
+
+            >
+
+              <Text
+
+                style={[
+                  styles.modeButtonText,
+
+                  aiMode === mode &&
+                    styles.modeButtonTextActive,
+
+                ]}
+
+              >
+
+                {mode}
+
+              </Text>
+
+            </TouchableOpacity>
+
+          ))}
+
+        </ScrollView>
+
+
+        {/* INPUT */}
+
+        <View
+          style={styles.inputArea}
+        >
+
+
+          <TouchableOpacity
+            onPress={pickImage}
+            style={styles.attachButton}
           >
 
-            <ActivityIndicator
-              size="small"
+            <Ionicons
+              name="add"
+              size={25}
+              color={
+                COLORS.textSecondary
+              }
             />
 
-            <Text
-              style={
-                styles.typingText
-              }
-            >
-              Destiny AI is working...
-            </Text>
-
-          </View>
-
-        )}
-
-      </ScrollView>
+          </TouchableOpacity>
 
 
-      {/* TOOL BAR */}
+          <TextInput
 
-      <View
-        style={styles.toolBar}
-      >
+            value={message}
 
-        <ToolButton
-          label="Chat"
-          icon="✦"
-          active={
-            activeTool === "chat"
-          }
-          onPress={() =>
-            setActiveTool("chat")
-          }
-        />
+            onChangeText={setMessage}
 
+            placeholder={`Message Destiny AI (${aiMode})`}
 
-        <ToolButton
-          label="Image"
-          icon="◉"
-          active={
-            activeTool === "image"
-          }
-          onPress={() =>
-            setActiveTool("image")
-          }
-        />
+            placeholderTextColor={
+              COLORS.textMuted
+            }
+
+            multiline
+
+            style={styles.chatInput}
+
+          />
 
 
-        <ToolButton
-          label="Video"
-          icon="▶"
-          active={
-            activeTool === "video"
-          }
-          onPress={() =>
-            setActiveTool("video")
-          }
-        />
+          <TouchableOpacity
+
+            onPress={sendMessage}
+
+            disabled={
+              !message.trim() ||
+              sending
+            }
+
+            style={[
+              styles.sendButton,
+
+              (!message.trim() ||
+                sending) &&
+                styles.sendButtonDisabled,
+
+            ]}
+
+          >
+
+            {sending ? (
+
+              <ActivityIndicator
+                size="small"
+                color="#FFFFFF"
+              />
+
+            ) : (
+
+              <Ionicons
+                name="arrow-up"
+                size={22}
+                color="#FFFFFF"
+              />
+
+            )}
+
+          </TouchableOpacity>
 
 
-        <ToolButton
-          label="Music"
-          icon="♪"
-          active={
-            activeTool === "music"
-          }
-          onPress={() =>
-            setActiveTool("music")
-          }
-        />
+        </View>
+
 
       </View>
 
+    </KeyboardAvoidingView>
 
-      {/* IMAGE PREVIEW */}
+  );
 
-      {selectedImage && (
+}
+
+
+/* =========================================================
+   MESSAGE BUBBLE
+========================================================= */
+
+function MessageBubble({
+
+  message,
+
+  copyMessage,
+
+  speakMessage,
+
+}: any) {
+
+  const isUser =
+    message.role === "user";
+
+
+  return (
+
+    <View
+
+      style={[
+        styles.messageRow,
+
+        isUser
+          ? styles.userRow
+          : styles.aiRow,
+
+      ]}
+
+    >
+
+
+      {!isUser && (
 
         <View
-          style={
-            styles.selectedImageContainer
-          }
+          style={styles.aiAvatar}
         >
 
-          <RNImage
-            source={{
-              uri:
-                selectedImage.uri,
-            }}
-            style={
-              styles.selectedImage
-            }
+          <Ionicons
+            name="sparkles"
+            size={15}
+            color="#FFFFFF"
           />
-
-          <View
-            style={
-              styles.selectedImageInfo
-            }
-          >
-
-            <Text
-              style={
-                styles.selectedImageTitle
-              }
-            >
-              Image selected
-            </Text>
-
-            <Text
-              style={
-                styles.selectedImageSubtitle
-              }
-            >
-              Ready for video generation
-            </Text>
-
-          </View>
-
-
-          <Pressable
-            onPress={() => {
-
-              setSelectedImage(null);
-              setUploadedImageUrl(null);
-
-            }}
-          >
-
-            <Text
-              style={
-                styles.removeImage
-              }
-            >
-              ×
-            </Text>
-
-          </Pressable>
 
         </View>
 
       )}
 
 
-      {/* SUGGESTIONS */}
+      <View
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.suggestions}
-        contentContainerStyle={
-          styles.suggestionsContent
-        }
+        style={[
+          styles.messageBubble,
+
+          isUser
+            ? styles.userBubble
+            : styles.assistantBubble,
+
+        ]}
+
       >
 
-        {suggestions.map(
-          (suggestion) => (
+        <Text
+          style={styles.messageText}
+        >
 
-            <Pressable
-              key={suggestion}
-              style={
-                styles.suggestionChip
+          {message.content}
+
+        </Text>
+
+
+        {!isUser && (
+
+          <View
+            style={styles.messageActions}
+          >
+
+            <TouchableOpacity
+              onPress={() =>
+                copyMessage(
+                  message.content
+                )
               }
-              onPress={() => {
+            >
 
-                setInput(
-                  suggestion
-                );
+              <Ionicons
+                name="copy-outline"
+                size={17}
+                color={
+                  COLORS.textSecondary
+                }
+              />
 
+            </TouchableOpacity>
+
+
+            <TouchableOpacity
+              onPress={() =>
+                speakMessage(
+                  message.content
+                )
+              }
+              style={{
+                marginLeft: 16,
               }}
             >
 
-              <Text
-                style={
-                  styles.suggestionText
+              <Ionicons
+                name="volume-high-outline"
+                size={18}
+                color={
+                  COLORS.textSecondary
                 }
-              >
-                {suggestion}
-              </Text>
-
-            </Pressable>
-
-          )
-        )}
-
-      </ScrollView>
-
-
-      {/* INPUT */}
-
-      <KeyboardAvoidingView
-        behavior={
-          Platform.OS === "ios"
-            ? "padding"
-            : undefined
-        }
-      >
-
-        <View
-          style={styles.inputBar}
-        >
-
-          {activeTool === "video" && (
-
-            <Pressable
-              style={
-                styles.attachButton
-              }
-              onPress={pickImage}
-            >
-
-              <Text
-                style={
-                  styles.attachText
-                }
-              >
-                ＋
-              </Text>
-
-            </Pressable>
-
-          )}
-
-
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder={
-              activeTool === "chat"
-                ? "Message Destiny AI..."
-                : activeTool === "image"
-                ? "Describe the image..."
-                : activeTool === "video"
-                ? "Describe the motion..."
-                : "Describe the music..."
-            }
-            placeholderTextColor="#68738a"
-            multiline
-            style={styles.messageInput}
-            editable={!busy}
-          />
-
-
-          <Pressable
-            style={[
-              styles.sendButton,
-              busy &&
-                styles.disabledButton,
-            ]}
-            onPress={runTool}
-            disabled={busy}
-          >
-
-            {busy ? (
-
-              <ActivityIndicator
-                color="#07111f"
-                size="small"
               />
 
-            ) : (
+            </TouchableOpacity>
 
-              <Text
-                style={
-                  styles.sendButtonText
-                }
-              >
-                ↑
-              </Text>
+          </View>
 
-            )}
+        )}
 
-          </Pressable>
+      </View>
 
-        </View>
+    </View>
 
-      </KeyboardAvoidingView>
-
-    </SafeAreaView>
   );
+
 }
 
 
-// ============================================================
-// TOOL BUTTON
-// ============================================================
+/* =========================================================
+   STUDIO
+========================================================= */
 
-function ToolButton({
-  label,
-  icon,
-  active,
-  onPress,
-}: {
-  label: string;
-  icon: string;
-  active: boolean;
-  onPress: () => void;
-}) {
+function StudioScreen({
+
+  studioPrompt,
+
+  setStudioPrompt,
+
+  selectedImage,
+
+  pickImage,
+
+  studioLoading,
+
+  generateMedia,
+
+}: any) {
 
   return (
 
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.toolButton,
-        active &&
-          styles.toolButtonActive,
-      ]}
+    <ScrollView
+      style={styles.studioContainer}
     >
 
-      <Text
-        style={[
-          styles.toolIcon,
-          active &&
-            styles.toolIconActive,
-        ]}
-      >
-        {icon}
-      </Text>
 
       <Text
+        style={styles.studioTitle}
+      >
+        Creation Studio
+      </Text>
+
+
+      <Text
+        style={styles.studioSubtitle}
+      >
+
+        Create images, videos and music
+        with artificial intelligence.
+
+      </Text>
+
+
+      <TextInput
+
+        value={studioPrompt}
+
+        onChangeText={
+          setStudioPrompt
+        }
+
+        placeholder="Describe what you want to create..."
+
+        placeholderTextColor={
+          COLORS.textMuted
+        }
+
+        multiline
+
+        style={styles.studioInput}
+
+      />
+
+
+      {selectedImage && (
+
+        <View
+          style={styles.selectedImageContainer}
+        >
+
+          <Image
+            source={{
+              uri: selectedImage,
+            }}
+            style={
+              styles.selectedImage
+            }
+          />
+
+        </View>
+
+      )}
+
+
+      <TouchableOpacity
+
+        onPress={pickImage}
+
+        style={styles.uploadImageButton}
+
+      >
+
+        <Ionicons
+          name="image-outline"
+          size={22}
+          color={COLORS.text}
+        />
+
+        <Text
+          style={
+            styles.uploadImageText
+          }
+        >
+
+          {selectedImage
+            ? "Change Image"
+            : "Upload Reference Image"}
+
+        </Text>
+
+      </TouchableOpacity>
+
+
+      <StudioButton
+
+        icon="image"
+
+        title="Generate Image"
+
+        subtitle="Create AI artwork"
+
+        loading={studioLoading}
+
+        onPress={() =>
+          generateMedia("image")
+        }
+
+      />
+
+
+      <StudioButton
+
+        icon="videocam"
+
+        title="Generate Video"
+
+        subtitle="Turn your idea into video"
+
+        loading={studioLoading}
+
+        onPress={() =>
+          generateMedia("video")
+        }
+
+      />
+
+
+      <StudioButton
+
+        icon="musical-notes"
+
+        title="Generate Music"
+
+        subtitle="Create AI music"
+
+        loading={studioLoading}
+
+        onPress={() =>
+          generateMedia("music")
+        }
+
+      />
+
+
+    </ScrollView>
+
+  );
+
+}
+
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+
+function SettingsScreen({
+  email,
+}: any) {
+
+  return (
+
+    <ScrollView
+      style={styles.settingsContainer}
+    >
+
+
+      <Text
+        style={styles.settingsTitle}
+      >
+        Settings
+      </Text>
+
+
+      <SettingRow
+
+        icon="person-outline"
+
+        title="Account"
+
+        subtitle={email}
+
+      />
+
+
+      <SettingRow
+
+        icon="moon-outline"
+
+        title="Appearance"
+
+        subtitle="Dark Mode"
+
+      />
+
+
+      <SettingRow
+
+        icon="hardware-chip-outline"
+
+        title="AI Preferences"
+
+        subtitle="Manage AI settings"
+
+      />
+
+
+      <SettingRow
+
+        icon="brain-outline"
+
+        title="Memory"
+
+        subtitle="Control what Destiny AI remembers"
+
+      />
+
+
+      <SettingRow
+
+        icon="shield-checkmark-outline"
+
+        title="Privacy"
+
+        subtitle="Manage your privacy"
+
+      />
+
+
+      <SettingRow
+
+        icon="information-circle-outline"
+
+        title="About Destiny AI"
+
+        subtitle="Version 2.0"
+
+      />
+
+
+    </ScrollView>
+
+  );
+
+}
+
+
+/* =========================================================
+   SMALL COMPONENTS
+========================================================= */
+
+function NavButton({
+  icon,
+  label,
+  active,
+  onPress,
+}: any) {
+
+  return (
+
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.navButton}
+    >
+
+      <Ionicons
+
+        name={icon}
+
+        size={22}
+
+        color={
+          active
+            ? COLORS.primary
+            : COLORS.textMuted
+        }
+
+      />
+
+      <Text
+
         style={[
-          styles.toolLabel,
+          styles.navLabel,
+
           active &&
-            styles.toolLabelActive,
+            styles.navLabelActive,
+
         ]}
+
+      >
+
+        {label}
+
+      </Text>
+
+    </TouchableOpacity>
+
+  );
+
+}
+
+
+function QuickAction({
+  icon,
+  label,
+  onPress,
+}: any) {
+
+  return (
+
+    <TouchableOpacity
+
+      onPress={onPress}
+
+      style={styles.quickAction}
+
+    >
+
+      <Ionicons
+
+        name={icon}
+
+        size={26}
+
+        color={COLORS.primary}
+
+      />
+
+      <Text
+        style={styles.quickActionText}
       >
         {label}
       </Text>
 
-    </Pressable>
+    </TouchableOpacity>
 
   );
+
 }
 
 
-// ============================================================
-// MEDIA URL FINDER
-// ============================================================
+function StudioButton({
+  icon,
+  title,
+  subtitle,
+  loading,
+  onPress,
+}: any) {
 
-function findMediaUrl(
-  value: any,
-  type: "video" | "audio"
-): string | null {
+  return (
 
-  if (!value) {
-    return null;
-  }
+    <TouchableOpacity
 
-  if (typeof value === "string") {
+      onPress={onPress}
 
-    if (
-      value.startsWith("http://") ||
-      value.startsWith("https://")
-    ) {
-      return value;
-    }
+      disabled={loading}
 
-    return null;
-  }
+      style={styles.studioButton}
 
+    >
 
-  if (Array.isArray(value)) {
+      <View
+        style={styles.studioIcon}
+      >
 
-    for (const item of value) {
+        <Ionicons
+          name={icon}
+          size={25}
+          color="#FFFFFF"
+        />
 
-      const result =
-        findMediaUrl(
-          item,
-          type
-        );
-
-      if (result) {
-        return result;
-      }
-
-    }
-
-    return null;
-  }
+      </View>
 
 
-  if (typeof value === "object") {
+      <View
+        style={{ flex: 1 }}
+      >
 
-    const preferredKeys =
-      type === "video"
-        ? [
-            "video_url",
-            "videoUrl",
-            "url",
-            "file_url",
-            "fileUrl",
-          ]
-        : [
-            "audio_url",
-            "audioUrl",
-            "audio",
-            "url",
-            "file_url",
-            "fileUrl",
-          ];
+        <Text
+          style={styles.studioButtonTitle}
+        >
+          {title}
+        </Text>
 
-    for (
-      const key of preferredKeys
-    ) {
+        <Text
+          style={
+            styles.studioButtonSubtitle
+          }
+        >
+          {subtitle}
+        </Text>
 
-      const candidate =
-        value[key];
-
-      if (
-        typeof candidate ===
-        "string" &&
-        (
-          candidate.startsWith(
-            "http://"
-          ) ||
-          candidate.startsWith(
-            "https://"
-          )
-        )
-      ) {
-
-        return candidate;
-
-      }
-
-    }
+      </View>
 
 
-    for (
-      const key of Object.keys(
-        value
-      )
-    ) {
+      {loading ? (
 
-      const result =
-        findMediaUrl(
-          value[key],
-          type
-        );
+        <ActivityIndicator
+          color={COLORS.primary}
+        />
 
-      if (result) {
-        return result;
-      }
+      ) : (
 
-    }
+        <Ionicons
+          name="chevron-forward"
+          size={22}
+          color={COLORS.textMuted}
+        />
 
-  }
+      )}
 
-  return null;
+    </TouchableOpacity>
+
+  );
+
 }
 
 
-// ============================================================
-// STYLES
-// ============================================================
+function SettingRow({
+  icon,
+  title,
+  subtitle,
+}: any) {
+
+  return (
+
+    <TouchableOpacity
+      style={styles.settingRow}
+    >
+
+      <View
+        style={styles.settingIcon}
+      >
+
+        <Ionicons
+          name={icon}
+          size={22}
+          color={COLORS.primary}
+        />
+
+      </View>
+
+
+      <View
+        style={{ flex: 1 }}
+      >
+
+        <Text
+          style={styles.settingTitle}
+        >
+          {title}
+        </Text>
+
+        <Text
+          style={
+            styles.settingSubtitle
+          }
+        >
+          {subtitle}
+        </Text>
+
+      </View>
+
+
+      <Ionicons
+        name="chevron-forward"
+        size={20}
+        color={COLORS.textMuted}
+      />
+
+    </TouchableOpacity>
+
+  );
+
+}
+
+
+function ProfileOption({
+  icon,
+  label,
+  danger,
+  onPress,
+}: any) {
+
+  return (
+
+    <TouchableOpacity
+
+      onPress={onPress}
+
+      style={styles.profileOption}
+
+    >
+
+      <Ionicons
+
+        name={icon}
+
+        size={21}
+
+        color={
+          danger
+            ? COLORS.danger
+            : COLORS.text
+        }
+
+      />
+
+      <Text
+
+        style={[
+          styles.profileOptionText,
+
+          danger && {
+            color: COLORS.danger,
+          },
+
+        ]}
+
+      >
+        {label}
+      </Text>
+
+    </TouchableOpacity>
+
+  );
+
+}
+
+
+/* =========================================================
+   STYLES
+========================================================= */
 
 const styles =
   StyleSheet.create({
 
-    flex: {
-      flex: 1,
-    },
-
     container: {
       flex: 1,
-      backgroundColor: "#07111f",
+      backgroundColor:
+        COLORS.background,
     },
 
     loadingScreen: {
       flex: 1,
-      backgroundColor: "#07111f",
+      backgroundColor:
+        COLORS.background,
       alignItems: "center",
       justifyContent: "center",
     },
 
-    loader: {
-      marginTop: 28,
-    },
-
-    logoCircle: {
-      width: 82,
-      height: 82,
-      borderRadius: 41,
-      backgroundColor: "#d6ad52",
+    logoLarge: {
+      width: 90,
+      height: 90,
+      borderRadius: 30,
+      backgroundColor:
+        COLORS.primary,
       alignItems: "center",
       justifyContent: "center",
-      shadowOpacity: 0.25,
-      shadowRadius: 20,
-      elevation: 10,
-    },
-
-    logoText: {
-      color: "#07111f",
-      fontSize: 48,
-      fontWeight: "900",
+      shadowColor:
+        COLORS.primary,
+      shadowOpacity: 0.7,
+      shadowRadius: 25,
+      elevation: 12,
     },
 
     loadingTitle: {
-      color: "#ffffff",
-      fontSize: 25,
-      fontWeight: "800",
-      marginTop: 18,
+      color: COLORS.text,
+      fontSize: 28,
+      fontWeight: "900",
+      letterSpacing: 3,
+      marginTop: 20,
+    },
+
+    loadingSubtitle: {
+      color:
+        COLORS.textSecondary,
+      marginTop: 8,
+    },
+
+
+    /* AUTH */
+
+    authContainer: {
+      flex: 1,
+      backgroundColor:
+        COLORS.background,
     },
 
     authScroll: {
       flexGrow: 1,
+      padding: 25,
       justifyContent: "center",
-      padding: 22,
     },
 
     authLogo: {
+      width: 82,
+      height: 82,
+      borderRadius: 27,
+      backgroundColor:
+        COLORS.primary,
       alignItems: "center",
-      marginBottom: 28,
-    },
-
-    brand: {
-      color: "#ffffff",
-      fontSize: 31,
-      fontWeight: "900",
-      marginTop: 14,
-    },
-
-    tagline: {
-      color: "#8792a8",
-      fontSize: 14,
-      marginTop: 7,
-      textAlign: "center",
-    },
-
-    authCard: {
-      backgroundColor: "#0c1829",
-      borderRadius: 25,
-      padding: 22,
-      borderWidth: 1,
-      borderColor: "#1d2a3e",
+      justifyContent: "center",
+      alignSelf: "center",
+      marginBottom: 22,
     },
 
     authTitle: {
-      color: "#ffffff",
-      fontSize: 25,
-      fontWeight: "800",
+      color: COLORS.text,
+      fontSize: 34,
+      fontWeight: "900",
+      textAlign: "center",
     },
 
     authSubtitle: {
-      color: "#8490a6",
-      fontSize: 14,
-      marginTop: 7,
-      marginBottom: 22,
-      lineHeight: 21,
-    },
-
-    input: {
-      height: 54,
-      borderRadius: 15,
-      borderWidth: 1,
-      borderColor: "#26364d",
-      backgroundColor: "#07111f",
-      color: "#ffffff",
-      paddingHorizontal: 16,
-      marginBottom: 13,
+      color:
+        COLORS.textSecondary,
+      textAlign: "center",
       fontSize: 15,
+      lineHeight: 23,
+      marginTop: 12,
+      marginBottom: 35,
     },
 
-    primaryButton: {
-      minHeight: 54,
-      borderRadius: 15,
-      backgroundColor: "#d6ad52",
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: 4,
+    authCard: {
+      backgroundColor:
+        COLORS.surface,
+      borderRadius: 28,
+      padding: 24,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
     },
 
-    primaryButtonText: {
-      color: "#07111f",
-      fontWeight: "900",
+    authCardTitle: {
+      color: COLORS.text,
+      fontSize: 24,
+      fontWeight: "800",
+    },
+
+    authCardSubtitle: {
+      color:
+        COLORS.textSecondary,
+      marginTop: 8,
+      marginBottom: 24,
+    },
+
+    authInput: {
+      backgroundColor:
+        COLORS.surfaceLight,
+      color: COLORS.text,
+      paddingHorizontal: 17,
+      height: 56,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      marginBottom: 14,
       fontSize: 16,
     },
 
-    disabledButton: {
-      opacity: 0.55,
+    authButton: {
+      backgroundColor:
+        COLORS.primary,
+      height: 56,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 5,
+    },
+
+    authButtonText: {
+      color: "#FFFFFF",
+      fontSize: 16,
+      fontWeight: "800",
     },
 
     switchAuth: {
-      alignItems: "center",
-      marginTop: 20,
+      flexDirection: "row",
+      justifyContent: "center",
+      marginTop: 23,
     },
 
-    switchText: {
-      color: "#8994a9",
-      fontSize: 14,
+    switchAuthText: {
+      color:
+        COLORS.textSecondary,
     },
 
-    switchAccent: {
-      color: "#d6ad52",
+    switchAuthLink: {
+      color: COLORS.primary,
       fontWeight: "800",
     },
+
+
+    /* HEADER */
 
     header: {
-      minHeight: 70,
+      height: 65,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
       paddingHorizontal: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
       borderBottomWidth: 1,
-      borderBottomColor: "#152238",
-      backgroundColor: "#081321",
-    },
-
-    headerLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-
-    smallLogo: {
-      width: 43,
-      height: 43,
-      borderRadius: 14,
-      backgroundColor: "#d6ad52",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 11,
-    },
-
-    smallLogoText: {
-      color: "#07111f",
-      fontSize: 25,
-      fontWeight: "900",
-    },
-
-    headerTitle: {
-      color: "#ffffff",
-      fontSize: 17,
-      fontWeight: "800",
-    },
-
-    headerSubtitle: {
-      color: "#69758b",
-      fontSize: 11,
-      marginTop: 2,
-      maxWidth: 190,
-    },
-
-    headerActions: {
-      flexDirection: "row",
-      gap: 8,
+      borderBottomColor:
+        COLORS.border,
     },
 
     headerButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 13,
-      backgroundColor: "#111e31",
+      width: 42,
+      height: 42,
       alignItems: "center",
       justifyContent: "center",
-      borderWidth: 1,
-      borderColor: "#1d2b41",
     },
 
-    headerButtonText: {
-      color: "#d6ad52",
-      fontSize: 21,
-      fontWeight: "700",
+    brand: {
+      flexDirection: "row",
+      alignItems: "center",
     },
 
-    chat: {
+    brandIcon: {
+      width: 30,
+      height: 30,
+      borderRadius: 10,
+      backgroundColor:
+        COLORS.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 9,
+    },
+
+    brandText: {
+      color: COLORS.text,
+      fontWeight: "900",
+      fontSize: 18,
+    },
+
+    profileButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor:
+        COLORS.primaryDark,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+
+    /* CHAT */
+
+    chatContainer: {
       flex: 1,
     },
 
-    chatContent: {
+    messagesList: {
       padding: 16,
-      paddingBottom: 14,
+      paddingBottom: 20,
     },
 
-    welcome: {
+    welcomeContent: {
+      flexGrow: 1,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 75,
+      padding: 24,
     },
 
     welcomeLogo: {
-      width: 72,
-      height: 72,
-      borderRadius: 24,
-      backgroundColor: "#d6ad52",
+      width: 76,
+      height: 76,
+      borderRadius: 26,
+      backgroundColor:
+        COLORS.primary,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 20,
-    },
-
-    welcomeLogoText: {
-      color: "#07111f",
-      fontSize: 43,
-      fontWeight: "900",
+      marginBottom: 22,
     },
 
     welcomeTitle: {
-      color: "#ffffff",
-      fontSize: 24,
-      fontWeight: "800",
+      color: COLORS.text,
+      fontSize: 27,
+      fontWeight: "900",
       textAlign: "center",
     },
 
     welcomeSubtitle: {
-      color: "#7e8aa0",
-      fontSize: 14,
-      lineHeight: 21,
+      color:
+        COLORS.textSecondary,
       textAlign: "center",
-      marginTop: 10,
-      maxWidth: 330,
+      lineHeight: 22,
+      marginTop: 12,
+      maxWidth: 300,
     },
+
+    modeGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent:
+        "space-between",
+      marginTop: 32,
+      width: "100%",
+    },
+
+    quickAction: {
+      width: "47%",
+      height: 105,
+      backgroundColor:
+        COLORS.surface,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 15,
+    },
+
+    quickActionText: {
+      color: COLORS.text,
+      fontWeight: "700",
+      marginTop: 9,
+    },
+
+    modeSelector: {
+      paddingHorizontal: 15,
+      paddingVertical: 8,
+    },
+
+    modeButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor:
+        COLORS.surface,
+      marginRight: 8,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+    },
+
+    modeButtonActive: {
+      backgroundColor:
+        COLORS.primary,
+      borderColor:
+        COLORS.primary,
+    },
+
+    modeButtonText: {
+      color:
+        COLORS.textSecondary,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+
+    modeButtonTextActive: {
+      color: "#FFFFFF",
+    },
+
+
+    /* MESSAGE */
 
     messageRow: {
-      width: "100%",
-      marginBottom: 13,
-    },
-
-    userRow: {
-      alignItems: "flex-end",
-    },
-
-    assistantRow: {
+      flexDirection: "row",
+      marginBottom: 18,
       alignItems: "flex-start",
     },
 
+    userRow: {
+      justifyContent:
+        "flex-end",
+    },
+
+    aiRow: {
+      justifyContent:
+        "flex-start",
+    },
+
+    aiAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 11,
+      backgroundColor:
+        COLORS.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 9,
+      marginTop: 3,
+    },
+
     messageBubble: {
-      maxWidth: "88%",
-      borderRadius: 19,
+      maxWidth: "82%",
       padding: 14,
+      borderRadius: 20,
     },
 
     userBubble: {
-      backgroundColor: "#d6ad52",
-      borderBottomRightRadius: 5,
+      backgroundColor:
+        COLORS.userBubble,
+      borderBottomRightRadius: 6,
     },
 
     assistantBubble: {
-      backgroundColor: "#101e31",
+      backgroundColor:
+        COLORS.aiBubble,
+      borderBottomLeftRadius: 6,
       borderWidth: 1,
-      borderColor: "#1c2b40",
-      borderBottomLeftRadius: 5,
+      borderColor:
+        COLORS.border,
     },
 
     messageText: {
+      color: COLORS.text,
       fontSize: 15,
-      lineHeight: 22,
+      lineHeight: 23,
     },
 
-    userMessageText: {
-      color: "#07111f",
+    messageActions: {
+      flexDirection: "row",
+      marginTop: 12,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor:
+        COLORS.border,
     },
 
-    assistantMessageText: {
-      color: "#edf2f9",
-    },
-
-    speakButton: {
-      marginTop: 11,
-      alignSelf: "flex-start",
-      paddingVertical: 6,
-      paddingHorizontal: 9,
-      borderRadius: 9,
-      backgroundColor: "#17263b",
-    },
-
-    speakText: {
-      color: "#d6ad52",
-      fontSize: 12,
-      fontWeight: "700",
-    },
-
-    typingBubble: {
-      alignSelf: "flex-start",
+    typingContainer: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      backgroundColor: "#101e31",
-      borderRadius: 16,
-      paddingHorizontal: 14,
-      paddingVertical: 11,
-      borderWidth: 1,
-      borderColor: "#1c2b40",
+      padding: 15,
     },
 
     typingText: {
-      color: "#8995aa",
-      fontSize: 12,
-    },
-
-    generatedImage: {
-      width: 260,
-      height: 260,
-      borderRadius: 15,
-      marginTop: 12,
-    },
-
-    mediaLink: {
-      color: "#d6ad52",
-      fontSize: 12,
-      fontWeight: "700",
-      marginTop: 8,
-    },
-
-    mediaButton: {
-      marginTop: 12,
-      borderRadius: 12,
-      backgroundColor: "#d6ad52",
-      paddingVertical: 11,
-      paddingHorizontal: 15,
-    },
-
-    mediaButtonText: {
-      color: "#07111f",
-      fontWeight: "900",
-      fontSize: 13,
-    },
-
-    toolBar: {
-      flexDirection: "row",
-      paddingHorizontal: 12,
-      paddingTop: 8,
-      paddingBottom: 5,
-      backgroundColor: "#081321",
-      borderTopWidth: 1,
-      borderTopColor: "#152238",
-    },
-
-    toolButton: {
-      flex: 1,
-      minHeight: 55,
-      borderRadius: 14,
-      alignItems: "center",
-      justifyContent: "center",
-      marginHorizontal: 3,
-    },
-
-    toolButtonActive: {
-      backgroundColor: "#132238",
-      borderWidth: 1,
-      borderColor: "#263a56",
-    },
-
-    toolIcon: {
-      color: "#758198",
-      fontSize: 17,
-      fontWeight: "700",
-    },
-
-    toolIconActive: {
-      color: "#d6ad52",
-    },
-
-    toolLabel: {
-      color: "#758198",
-      fontSize: 10,
-      marginTop: 3,
-      fontWeight: "700",
-    },
-
-    toolLabelActive: {
-      color: "#d6ad52",
-    },
-
-    selectedImageContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: "#0d1a2b",
-      borderTopWidth: 1,
-      borderTopColor: "#1a2a40",
-      padding: 9,
-    },
-
-    selectedImage: {
-      width: 48,
-      height: 48,
-      borderRadius: 11,
-    },
-
-    selectedImageInfo: {
-      flex: 1,
+      color:
+        COLORS.textSecondary,
       marginLeft: 10,
     },
 
-    selectedImageTitle: {
-      color: "#ffffff",
-      fontSize: 13,
-      fontWeight: "800",
-    },
 
-    selectedImageSubtitle: {
-      color: "#78849a",
-      fontSize: 11,
-      marginTop: 3,
-    },
+    /* INPUT */
 
-    removeImage: {
-      color: "#ff6b6b",
-      fontSize: 27,
-      paddingHorizontal: 10,
-    },
-
-    suggestions: {
-      maxHeight: 47,
-      backgroundColor: "#081321",
-    },
-
-    suggestionsContent: {
-      paddingHorizontal: 11,
-      alignItems: "center",
-    },
-
-    suggestionChip: {
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: "#1d2d44",
-      backgroundColor: "#0d1a2b",
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      marginHorizontal: 4,
-    },
-
-    suggestionText: {
-      color: "#929db0",
-      fontSize: 11,
-    },
-
-    inputBar: {
+    inputArea: {
       flexDirection: "row",
       alignItems: "flex-end",
       padding: 10,
-      backgroundColor: "#081321",
-      borderTopWidth: 1,
-      borderTopColor: "#152238",
+      margin: 12,
+      backgroundColor:
+        COLORS.surface,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
     },
 
     attachButton: {
-      width: 45,
-      height: 48,
-      borderRadius: 15,
+      width: 40,
+      height: 45,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#101f32",
-      marginRight: 7,
-      borderWidth: 1,
-      borderColor: "#203149",
     },
 
-    attachText: {
-      color: "#d6ad52",
-      fontSize: 25,
-      fontWeight: "700",
-    },
-
-    messageInput: {
+    chatInput: {
       flex: 1,
+      color: COLORS.text,
       maxHeight: 120,
-      minHeight: 48,
-      backgroundColor: "#101d30",
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: "#203149",
-      color: "#ffffff",
-      paddingHorizontal: 15,
-      paddingVertical: 13,
-      fontSize: 14,
+      paddingVertical: 12,
+      fontSize: 15,
     },
 
     sendButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 15,
-      backgroundColor: "#d6ad52",
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor:
+        COLORS.primary,
       alignItems: "center",
       justifyContent: "center",
+    },
+
+    sendButtonDisabled: {
+      opacity: 0.4,
+    },
+
+
+    /* STUDIO */
+
+    studioContainer: {
+      flex: 1,
+      padding: 20,
+    },
+
+    studioTitle: {
+      color: COLORS.text,
+      fontSize: 29,
+      fontWeight: "900",
+    },
+
+    studioSubtitle: {
+      color:
+        COLORS.textSecondary,
+      lineHeight: 22,
+      marginTop: 8,
+      marginBottom: 22,
+    },
+
+    studioInput: {
+      minHeight: 130,
+      backgroundColor:
+        COLORS.surface,
+      color: COLORS.text,
+      padding: 18,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+      textAlignVertical: "top",
+      fontSize: 15,
+    },
+
+    selectedImageContainer: {
+      marginTop: 15,
+      alignItems: "center",
+    },
+
+    selectedImage: {
+      width: "100%",
+      height: 190,
+      borderRadius: 18,
+    },
+
+    uploadImageButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      height: 55,
+      borderRadius: 16,
+      backgroundColor:
+        COLORS.surfaceLight,
+      marginVertical: 16,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+    },
+
+    uploadImageText: {
+      color: COLORS.text,
+      fontWeight: "700",
+      marginLeft: 10,
+    },
+
+    studioButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor:
+        COLORS.surface,
+      padding: 16,
+      borderRadius: 20,
+      marginBottom: 13,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+    },
+
+    studioIcon: {
+      width: 50,
+      height: 50,
+      borderRadius: 16,
+      backgroundColor:
+        COLORS.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 14,
+    },
+
+    studioButtonTitle: {
+      color: COLORS.text,
+      fontSize: 16,
+      fontWeight: "800",
+    },
+
+    studioButtonSubtitle: {
+      color:
+        COLORS.textSecondary,
+      marginTop: 4,
+      fontSize: 13,
+    },
+
+
+    /* SETTINGS */
+
+    settingsContainer: {
+      flex: 1,
+      padding: 20,
+    },
+
+    settingsTitle: {
+      color: COLORS.text,
+      fontSize: 29,
+      fontWeight: "900",
+      marginBottom: 20,
+    },
+
+    settingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor:
+        COLORS.surface,
+      padding: 15,
+      borderRadius: 18,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+    },
+
+    settingIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor:
+        COLORS.surfaceLight,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 13,
+    },
+
+    settingTitle: {
+      color: COLORS.text,
+      fontSize: 15,
+      fontWeight: "800",
+    },
+
+    settingSubtitle: {
+      color:
+        COLORS.textSecondary,
+      fontSize: 12,
+      marginTop: 4,
+    },
+
+
+    /* BOTTOM NAV */
+
+    bottomNav: {
+      height: 68,
+      flexDirection: "row",
+      borderTopWidth: 1,
+      borderTopColor:
+        COLORS.border,
+      backgroundColor:
+        COLORS.surface,
+    },
+
+    navButton: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    navLabel: {
+      color:
+        COLORS.textMuted,
+      fontSize: 11,
+      marginTop: 4,
+    },
+
+    navLabelActive: {
+      color:
+        COLORS.primary,
+      fontWeight: "800",
+    },
+
+
+    /* SIDEBAR */
+
+    sidebarOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.65)",
+    },
+
+    sidebar: {
+      width: "84%",
+      maxWidth: 380,
+      height: "100%",
+      backgroundColor:
+        COLORS.surface,
+      paddingTop: 50,
+      paddingHorizontal: 17,
+    },
+
+    sidebarHeader: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+
+    sidebarTitle: {
+      color: COLORS.text,
+      fontSize: 22,
+      fontWeight: "900",
+    },
+
+    newChatButton: {
+      height: 52,
+      borderRadius: 15,
+      backgroundColor:
+        COLORS.primary,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 15,
+    },
+
+    newChatText: {
+      color: "#FFFFFF",
+      fontWeight: "800",
       marginLeft: 7,
     },
 
-    sendButtonText: {
-      color: "#07111f",
-      fontSize: 26,
-      fontWeight: "900",
+    searchBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      height: 48,
+      backgroundColor:
+        COLORS.surfaceLight,
+      borderRadius: 14,
+      paddingHorizontal: 13,
+      marginBottom: 15,
+    },
+
+    searchInput: {
+      flex: 1,
+      color: COLORS.text,
+      marginLeft: 8,
+    },
+
+    conversationItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor:
+        COLORS.border,
+    },
+
+    conversationTitle: {
+      color: COLORS.text,
+      fontSize: 14,
+    },
+
+    emptyHistory: {
+      alignItems: "center",
+      marginTop: 60,
+    },
+
+    emptyHistoryText: {
+      color:
+        COLORS.textMuted,
+      marginTop: 12,
+    },
+
+    sidebarFooter: {
+      borderTopWidth: 1,
+      borderTopColor:
+        COLORS.border,
+      paddingVertical: 18,
+    },
+
+    sidebarEmail: {
+      color:
+        COLORS.textSecondary,
+    },
+
+
+    /* PROFILE */
+
+    profileOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.6)",
+      justifyContent:
+        "flex-start",
+      alignItems: "flex-end",
+      paddingTop: 70,
+      paddingRight: 15,
+    },
+
+    profileMenu: {
+      width: 280,
+      backgroundColor:
+        COLORS.surface,
+      borderRadius: 22,
+      padding: 18,
+      borderWidth: 1,
+      borderColor:
+        COLORS.border,
+    },
+
+    profileAvatarLarge: {
+      width: 55,
+      height: 55,
+      borderRadius: 20,
+      backgroundColor:
+        COLORS.primary,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 12,
+    },
+
+    profileEmail: {
+      color: COLORS.text,
+      fontWeight: "700",
+      marginBottom: 16,
+    },
+
+    profileOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 14,
+    },
+
+    profileOptionText: {
+      color: COLORS.text,
+      marginLeft: 13,
+      fontSize: 15,
+      fontWeight: "600",
     },
 
   });
