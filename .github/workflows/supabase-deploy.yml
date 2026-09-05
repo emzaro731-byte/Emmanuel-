@@ -1,0 +1,38 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/**"
+      - ".github/workflows/supabase-deploy.yml"
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Supabase Functions
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check Supabase CLI
+        run: supabase --version
+
+      - name: Deploy Edge Functions
+        run: |
+          supabase functions deploy \
+            --project-ref "$SUPABASE_PROJECT_ID" \
+            --use-api
