@@ -1,4 +1,4 @@
-name: Build Destiny AI APK
+name: Destiny AI - Build Android APK
 
 on:
   workflow_dispatch:
@@ -7,68 +7,178 @@ on:
       - main
 
 jobs:
-  build-apk:
+  build:
+    name: Install dependencies and build APK
     runs-on: ubuntu-latest
 
     steps:
+
+      # -----------------------------------------
+      # 1. Download your GitHub repository
+      # -----------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # -----------------------------------------
+      # 2. Install Node.js
+      # -----------------------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Android
-        uses: android-actions/setup-android@v3
-
-      - name: Check project files
+      # -----------------------------------------
+      # 3. Check Node and npm
+      # -----------------------------------------
+      - name: Check Node.js
         run: |
-          echo "===== PROJECT ====="
-          ls -la
-          echo "===== PACKAGE.JSON ====="
-          cat package.json
+          node --version
+          npm --version
 
+      # -----------------------------------------
+      # 4. Check project files
+      # -----------------------------------------
+      - name: Check project
+        run: |
+          echo "Project files:"
+          ls -la
+
+          echo "Checking package.json..."
+          test -f package.json
+
+          echo "Checking app.json..."
+          test -f app.json
+
+      # -----------------------------------------
+      # 5. Install existing dependencies
+      # -----------------------------------------
       - name: Install npm dependencies
         run: npm install
 
+      # -----------------------------------------
+      # 6. Install Supabase
+      # -----------------------------------------
+      - name: Install Supabase packages
+        run: |
+          npm install \
+            @supabase/supabase-js \
+            @react-native-async-storage/async-storage \
+            react-native-url-polyfill \
+            base64-arraybuffer
+
+      # -----------------------------------------
+      # 7. Install Expo packages
+      # -----------------------------------------
       - name: Install Expo packages
         run: |
-          npx expo install @supabase/supabase-js @react-native-async-storage/async-storage react-native-url-polyfill expo-image-picker expo-speech
+          npx expo install \
+            expo-image-picker \
+            expo-file-system \
+            expo-speech \
+            expo-constants \
+            expo-asset \
+            expo-font \
+            expo-keep-awake
 
-      - name: Check Expo
-        run: npx expo --version
-
-      - name: Check dependencies
+      # -----------------------------------------
+      # 8. Install Expo build packages
+      # -----------------------------------------
+      - name: Install build packages
         run: |
-          npm list @supabase/supabase-js || true
-          npm list @react-native-async-storage/async-storage || true
-          npm list react-native-url-polyfill || true
-          npm list expo-image-picker || true
-          npm list expo-speech || true
+          npx expo install expo-build-properties
 
-      - name: Expo Doctor
-        run: npx expo-doctor
-        continue-on-error: true
+      # -----------------------------------------
+      # 9. Install EAS CLI
+      # -----------------------------------------
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
 
+      # -----------------------------------------
+      # 10. Check Expo project
+      # -----------------------------------------
+      - name: Check Expo configuration
+        run: |
+          npx expo config --type public
+
+      # -----------------------------------------
+      # 11. Run Expo Doctor
+      # -----------------------------------------
+      - name: Run Expo Doctor
+        run: |
+          npx expo-doctor
+
+      # -----------------------------------------
+      # 12. Verify important packages
+      # -----------------------------------------
+      - name: Verify dependencies
+        run: |
+          npm list @supabase/supabase-js
+          npm list @react-native-async-storage/async-storage
+          npm list react-native-url-polyfill
+          npm list base64-arraybuffer
+          npm list expo-image-picker
+          npm list expo-file-system
+          npm list expo-speech
+          npm list expo-constants
+          npm list expo-asset
+          npm list expo-font
+          npm list expo-keep-awake
+          npm list expo-build-properties
+
+      # -----------------------------------------
+      # 13. Check App.tsx
+      # -----------------------------------------
+      - name: Check application files
+        run: |
+          if [ -f App.tsx ]; then
+            echo "App.tsx found"
+          elif [ -f App.js ]; then
+            echo "App.js found"
+          else
+            echo "ERROR: App.tsx or App.js not found"
+            exit 1
+          fi
+
+      # -----------------------------------------
+      # 14. Check Babel
+      # -----------------------------------------
+      - name: Check Babel
+        run: |
+          test -f babel.config.js
+          cat babel.config.js
+
+      # -----------------------------------------
+      # 15. Install Android native project
+      # -----------------------------------------
       - name: Generate Android project
-        run: CI=1 npx expo prebuild --platform android
-
-      - name: Build APK
-        working-directory: android
         run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          npx expo prebuild \
+            --platform android \
+            --non-interactive
 
+      # -----------------------------------------
+      # 16. Build Android APK
+      # -----------------------------------------
+      - name: Build Android APK
+        run: |
+          cd android
+          ./gradlew assembleRelease
+
+      # -----------------------------------------
+      # 17. Find APK
+      # -----------------------------------------
+      - name: Find APK
+        run: |
+          echo "Searching for APK..."
+          find android -type f -name "*.apk" -print
+
+      # -----------------------------------------
+      # 18. Upload APK to GitHub Actions
+      # -----------------------------------------
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Destiny-AI-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
