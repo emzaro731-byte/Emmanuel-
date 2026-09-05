@@ -1,0 +1,110 @@
+name: Setup Destiny AI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "package.json"
+      - ".github/workflows/setup-destiny-ai.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Show versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Install dependencies
+        run: |
+          npm install
+
+      - name: Install Destiny AI packages
+        run: |
+          npm install @supabase/supabase-js
+          npm install @react-native-async-storage/async-storage
+          npm install react-native-url-polyfill
+          npm install @expo/vector-icons
+          npm install base64-arraybuffer
+
+      - name: Install Expo packages
+        run: |
+          npx expo install expo-image-picker
+          npx expo install expo-speech
+          npx expo install expo-file-system
+          npx expo install expo-clipboard
+
+      - name: Fix Expo dependencies
+        run: |
+          npx expo install --fix
+
+      - name: Generate package-lock
+        run: |
+          npm install
+
+      - name: Verify package-lock
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "❌ package-lock.json was not created"
+            exit 1
+          fi
+
+          echo "✅ package-lock.json created"
+          ls -lh package-lock.json
+
+      - name: Run Expo Doctor
+        run: |
+          npx expo-doctor
+
+      - name: Check installed packages
+        run: |
+          npm list \
+            @supabase/supabase-js \
+            @react-native-async-storage/async-storage \
+            react-native-url-polyfill \
+            @expo/vector-icons \
+            base64-arraybuffer \
+            expo-image-picker \
+            expo-speech \
+            expo-file-system \
+            expo-clipboard \
+            --depth=0
+
+      - name: Commit package files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add package.json package-lock.json
+
+          if git diff --cached --quiet; then
+            echo "✅ No package changes to commit"
+          else
+            git commit -m "Setup Destiny AI dependencies"
+            git push
+          fi
+
+      - name: Finished
+        run: |
+          echo "======================================"
+          echo "✅ DESTINY AI SETUP COMPLETE"
+          echo "======================================"
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "package-lock.json: CREATED"
+          echo "======================================"
