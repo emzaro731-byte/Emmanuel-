@@ -1,33 +1,4 @@
 {
-  "expo": {
-    "name": "Destiny AI",
-    "slug": "destiny-ai",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "scheme": "destinyai",
-
-    "icon": "./assets/icon.png",
-
-    "android": {
-      "package": "com.emmanuelebitarijames.destinyai",
-      "versionCode": 1,
-      "permissions": [
-        "android.permission.INTERNET"
-      ]
-    },
-
-    "plugins": [
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow Destiny AI to access your photos."
-        }
-      ]
-    ],
-
-    "extra": {
-      "supabaseUrl": "https://vihbsfrwnslnmheowkhy.supabase.co"
-    }
-  }
+  "name": "ChatGPTClone",
+  "displayName": "ChatGPT Clone"
 }
