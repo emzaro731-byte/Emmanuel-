@@ -1,56 +1,55 @@
-plugins {
-    id 'com.android.application'
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+react {
+    autolinkLibrariesWithApp()
 }
+
+def enableProguardInReleaseBuilds = false
 
 android {
     namespace "com.chatgptclone"
 
-    compileSdk 35
+    compileSdk rootProject.ext.compileSdkVersion
 
     defaultConfig {
         applicationId "com.chatgptclone"
 
-        minSdk 24
+        minSdkVersion rootProject.ext.minSdkVersion
 
-        targetSdk 35
+        targetSdkVersion rootProject.ext.targetSdkVersion
 
         versionCode 1
 
         versionName "1.0"
     }
 
+    signingConfigs {
+        debug {
+            storeFile file("debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
     buildTypes {
         debug {
-            debuggable true
+            signingConfig signingConfigs.debug
         }
 
         release {
-            minifyEnabled false
-            shrinkResources false
+            signingConfig signingConfigs.debug
+
+            minifyEnabled enableProguardInReleaseBuilds
 
             proguardFiles(
                 getDefaultProguardFile(
-                    'proguard-android-optimize.txt'
+                    "proguard-android-optimize.txt"
                 ),
-                'proguard-rules.pro'
+                "proguard-rules.pro"
             )
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-
-    packagingOptions {
-        resources {
-            excludes += [
-                "META-INF/DEPENDENCIES",
-                "META-INF/LICENSE",
-                "META-INF/LICENSE.txt",
-                "META-INF/NOTICE",
-                "META-INF/NOTICE.txt"
-            ]
         }
     }
 }
