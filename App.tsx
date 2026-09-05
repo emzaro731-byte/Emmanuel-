@@ -79,7 +79,7 @@ const STORAGE_KEY = "destiny_ai_conversations_v1";
   Example:
   https://abcdefghijkl.supabase.co
 */
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_URL = "https://vihbsfrwnslnmheowkhy.supabase.co";
 
 const AI_FUNCTION_NAME = "destiny-ai";
 
