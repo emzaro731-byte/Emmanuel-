@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build ChatGPT Clone APK
 
 on:
   push:
@@ -10,49 +10,55 @@ on:
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Get the source code
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Set up Java
-      - name: Set up Java 17
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-          cache: gradle
+          java-version: "17"
 
-      # 3. Set up Node.js
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
+      - name: Remove old dependencies
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
 
-      # 4. Install JavaScript dependencies
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
-      # 5. Make Gradle executable
+      - name: Check React Native
+        run: |
+          node -v
+          npm -v
+          npm ls react react-native --depth=0
+
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      # 6. Build release APK
-      - name: Build Release APK
+      - name: Clean Android
+        working-directory: android
+        run: ./gradlew clean
+
+      - name: Build APK
         working-directory: android
         run: ./gradlew assembleRelease --stacktrace
 
-      # 7. Find generated APK
       - name: Find APK
         run: |
-          echo "APK files:"
-          find android/app/build/outputs/apk -type f -name "*.apk" -print
+          find android/app/build/outputs/apk \
+            -type f \
+            -name "*.apk" \
+            -print
 
-      # 8. Upload APK to GitHub Actions
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
