@@ -1,461 +1,103 @@
-name: Build ChatGPT Clone APK
+name: Build Destiny AI Android APK
 
 on:
-  workflow_dispatch:
-
   push:
     branches:
       - main
-
-permissions:
-  contents: read
+  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Android Release APK
+  build-android:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
-
-      # ==========================================
-      # 1. CHECKOUT REPOSITORY
-      # ==========================================
+      # Download your GitHub project
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      # ==========================================
-      # 2. SETUP JAVA 17
-      # ==========================================
-      - name: Setup Java 17
+      # Install Java required for Android builds
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-
-      # ==========================================
-      # 3. SETUP NODE.JS 20
-      # ==========================================
+      # Install Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
 
-
-      # ==========================================
-      # 4. SETUP GRADLE 8.13
-      # ==========================================
-      # This means android/gradlew is NOT required.
-      # ==========================================
-      - name: Setup Gradle 8.13
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.13"
-
-
-      # ==========================================
-      # 5. SHOW BUILD ENVIRONMENT
-      # ==========================================
-      - name: Show versions
+      # Automatically install ALL dependencies from package.json
+      - name: Install dependencies
         run: |
-          echo "======================================"
-          echo "BUILD ENVIRONMENT"
-          echo "======================================"
-
-          echo ""
-          echo "Node:"
-          node --version
-
-          echo ""
-          echo "NPM:"
-          npm --version
-
-          echo ""
-          echo "Java:"
-          java -version
-
-          echo ""
-          echo "Gradle:"
-          gradle --version
-
-
-      # ==========================================
-      # 6. SHOW REPOSITORY FILES
-      # ==========================================
-      - name: Inspect repository
-        run: |
-          echo "======================================"
-          echo "REPOSITORY"
-          echo "======================================"
-
-          pwd
-
-          echo ""
-          echo "Root files:"
-          ls -la
-
-          echo ""
-          echo "Android directory:"
-          ls -la android || true
-
-
-      # ==========================================
-      # 7. VERIFY REQUIRED REACT NATIVE FILES
-      # ==========================================
-      - name: Verify React Native entry files
-        run: |
-          echo "======================================"
-          echo "VERIFYING REACT NATIVE FILES"
-          echo "======================================"
-
-          if [ ! -f index.js ]; then
-            echo ""
-            echo "ERROR: index.js is missing!"
-            echo ""
-            echo "Create index.js in the ROOT of the repository."
-            echo ""
-            exit 1
-          fi
-
-          if [ ! -f App.js ]; then
-            echo ""
-            echo "ERROR: App.js is missing!"
-            echo ""
-            exit 1
-          fi
-
-          if [ ! -f app.json ]; then
-            echo ""
-            echo "ERROR: app.json is missing!"
-            echo ""
-            exit 1
-          fi
-
-          echo ""
-          echo "index.js:"
-          ls -lh index.js
-
-          echo ""
-          echo "App.js:"
-          ls -lh App.js
-
-          echo ""
-          echo "app.json:"
-          ls -lh app.json
-
-          echo ""
-          echo "All required React Native files exist."
-
-
-      # ==========================================
-      # 8. SHOW PACKAGE.JSON
-      # ==========================================
-      - name: Verify package.json
-        run: |
-          echo "======================================"
-          echo "PACKAGE.JSON"
-          echo "======================================"
-
-          cat package.json
-
-
-      # ==========================================
-      # 9. REMOVE OLD NODE MODULES
-      # ==========================================
-      - name: Remove old dependencies
-        run: |
-          echo "Removing old dependencies..."
-
-          rm -rf node_modules
-
-          rm -f package-lock.json
-
-          echo "Old dependencies removed."
-
-
-      # ==========================================
-      # 10. INSTALL NPM DEPENDENCIES
-      # ==========================================
-      - name: Install JavaScript dependencies
-        run: |
-          echo "======================================"
-          echo "INSTALLING NPM DEPENDENCIES"
-          echo "======================================"
-
+          echo "Installing npm dependencies..."
           npm install
 
+          echo "Installing required React Native packages..."
+          npm install \
+            @react-native-async-storage/async-storage \
+            @react-native-clipboard/clipboard \
+            @supabase/supabase-js \
+            react-native-url-polyfill
 
-      # ==========================================
-      # 11. VERIFY REACT NATIVE
-      # ==========================================
-      - name: Verify React Native
+      # Install Android SDK components
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
         run: |
-          echo "======================================"
-          echo "REACT NATIVE"
-          echo "======================================"
+          yes | sdkmanager --licenses || true
 
-          echo "React Native version:"
-          node -p "require('react-native/package.json').version"
-
-          echo ""
-          echo "React version:"
-          node -p "require('react/package.json').version"
-
-
-      # ==========================================
-      # 12. VERIFY ANDROID PROJECT
-      # ==========================================
-      - name: Verify Android project
+      - name: Install Android SDK packages
         run: |
-          echo "======================================"
-          echo "ANDROID PROJECT"
-          echo "======================================"
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
-          if [ ! -d android ]; then
-            echo "ERROR: android directory does not exist!"
-            exit 1
-          fi
-
-          if [ ! -f android/settings.gradle ]; then
-            echo "ERROR: android/settings.gradle does not exist!"
-            exit 1
-          fi
-
-          if [ ! -f android/build.gradle ]; then
-            echo "ERROR: android/build.gradle does not exist!"
-            exit 1
-          fi
-
-          if [ ! -f android/app/build.gradle ]; then
-            echo "ERROR: android/app/build.gradle does not exist!"
-            exit 1
-          fi
-
-          echo "Android project files found."
-
-
-      # ==========================================
-      # 13. CREATE DEBUG KEYSTORE
-      # ==========================================
-      # Your current release configuration uses
-      # the debug signing configuration.
-      # ==========================================
-      - name: Create Android debug keystore
+      # Make Gradle executable
+      - name: Make Gradle executable
         run: |
-          echo "======================================"
-          echo "ANDROID KEYSTORE"
-          echo "======================================"
+          chmod +x android/gradlew
 
-          if [ ! -f android/app/debug.keystore ]; then
-
-            echo "Creating debug.keystore..."
-
-            keytool -genkeypair \
-              -v \
-              -keystore android/app/debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-
-            echo "Debug keystore created."
-
-          else
-
-            echo "debug.keystore already exists."
-
-          fi
-
-
-      # ==========================================
-      # 14. ENSURE ANDROID STYLES
-      # ==========================================
-      - name: Ensure Android styles
+      # Show project information for debugging
+      - name: Check project files
         run: |
-          echo "======================================"
-          echo "ANDROID STYLES"
-          echo "======================================"
+          echo "===== PROJECT FILES ====="
+          ls -la
 
-          mkdir -p android/app/src/main/res/values
+          echo "===== ANDROID FOLDER ====="
+          ls -la android
 
-          if [ ! -f android/app/src/main/res/values/styles.xml ]; then
+          echo "===== PACKAGE.JSON ====="
+          cat package.json
 
-            echo "Creating styles.xml..."
-
-            cat > android/app/src/main/res/values/styles.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-
-              <style name="AppTheme"
-                  parent="android:style/Theme.Material.Light.NoActionBar">
-
-                  <item name="android:fontFamily">sans</item>
-                  <item name="android:windowActionModeOverlay">true</item>
-                  <item name="android:colorAccent">#10A37F</item>
-                  <item name="android:statusBarColor">#000000</item>
-                  <item name="android:navigationBarColor">#000000</item>
-
-              </style>
-
-          </resources>
-          EOF
-
-          else
-
-            echo "styles.xml already exists."
-
-          fi
-
-
-      # ==========================================
-      # 15. CHECK ANDROID MANIFEST
-      # ==========================================
-      - name: Check Android Manifest
-        run: |
-          echo "======================================"
-          echo "ANDROID MANIFEST"
-          echo "======================================"
-
-          if [ ! -f android/app/src/main/AndroidManifest.xml ]; then
-            echo "ERROR: AndroidManifest.xml missing!"
-            exit 1
-          fi
-
-          cat android/app/src/main/AndroidManifest.xml
-
-
-      # ==========================================
-      # 16. CLEAN ANDROID BUILD
-      # ==========================================
+      # Clean previous Android build
       - name: Clean Android project
         working-directory: android
         run: |
-          echo "======================================"
-          echo "GRADLE CLEAN"
-          echo "======================================"
+          ./gradlew clean
 
-          gradle clean --no-daemon
-
-
-      # ==========================================
-      # 17. BUILD RELEASE APK
-      # ==========================================
-      - name: Build Release APK
+      # Build the DEBUG APK
+      - name: Build Debug APK
         working-directory: android
         run: |
-          echo "======================================"
-          echo "BUILDING RELEASE APK"
-          echo "======================================"
+          ./gradlew assembleDebug --no-daemon
 
-          gradle assembleRelease \
-            --stacktrace \
-            --no-daemon
-
-
-      # ==========================================
-      # 18. SEARCH FOR APK
-      # ==========================================
-      - name: Find generated APK
+      # Show generated APK files
+      - name: Find APK
         run: |
-          echo "======================================"
-          echo "SEARCHING FOR APK"
-          echo "======================================"
+          echo "===== GENERATED APK FILES ====="
+          find android/app/build/outputs -type f | sort
 
-          find android/app/build/outputs \
-            -type f \
-            -name "*.apk" \
-            -print
-
-          echo ""
-          echo "APK directory:"
-          ls -lah android/app/build/outputs/apk/release/ || true
-
-
-      # ==========================================
-      # 19. VERIFY APK EXISTS
-      # ==========================================
-      - name: Verify APK
-        run: |
-          echo "======================================"
-          echo "VERIFYING APK"
-          echo "======================================"
-
-          if [ ! -f android/app/build/outputs/apk/release/app-release.apk ]; then
-
-            echo ""
-            echo "ERROR: APK was not created!"
-            echo ""
-
-            echo "Available APK files:"
-            find android \
-              -type f \
-              -name "*.apk" \
-              -print
-
-            exit 1
-
-          fi
-
-          echo ""
-          echo "APK successfully created!"
-
-          ls -lh \
-            android/app/build/outputs/apk/release/app-release.apk
-
-
-      # ==========================================
-      # 20. PREPARE APK FOR DOWNLOAD
-      # ==========================================
-      - name: Prepare APK
-        run: |
-          echo "======================================"
-          echo "PREPARING APK"
-          echo "======================================"
-
-          mkdir -p release
-
-          cp \
-            android/app/build/outputs/apk/release/app-release.apk \
-            release/ChatGPTClone.apk
-
-          echo ""
-          echo "Final APK:"
-          ls -lh release/ChatGPTClone.apk
-
-
-      # ==========================================
-      # 21. UPLOAD APK TO GITHUB ACTIONS
-      # ==========================================
+      # Upload APK so you can download it from GitHub Actions
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ChatGPTClone-APK
-          path: release/ChatGPTClone.apk
+          name: Destiny-AI-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-
-      # ==========================================
-      # 22. BUILD COMPLETE
-      # ==========================================
-      - name: Build complete
-        run: |
-          echo ""
-          echo "======================================"
-          echo "BUILD SUCCESSFUL"
-          echo "======================================"
-          echo ""
-          echo "ChatGPTClone.apk has been created."
-          echo ""
-          echo "Go to:"
-          echo "GitHub → Actions → Build ChatGPT Clone APK"
-          echo ""
-          echo "Then open the successful workflow run"
-          echo "and download:"
-          echo ""
-          echo "ChatGPTClone-APK"
-          echo ""
-          echo "======================================"
+          retention-days: 30
