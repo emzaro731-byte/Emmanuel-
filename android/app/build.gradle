@@ -8,19 +8,18 @@ react {
 
 def enableProguardInReleaseBuilds = false
 
-def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
-
 android {
-    ndkVersion rootProject.ext.ndkVersion
-    buildToolsVersion rootProject.ext.buildToolsVersion
-    compileSdk rootProject.ext.compileSdkVersion
+    namespace "com.destinyai"
 
-    namespace "com.chatgptclone"
+    compileSdk rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
-        applicationId "com.chatgptclone"
+        applicationId "com.destinyai"
+
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+
         versionCode 1
         versionName "1.0"
     }
@@ -35,32 +34,33 @@ android {
     }
 
     buildTypes {
+
         debug {
             signingConfig signingConfigs.debug
         }
 
         release {
-            /*
-             * This creates an installable APK using the debug keystore.
-             * For Google Play production releases, use your own release keystore.
-             */
             signingConfig signingConfigs.debug
 
             minifyEnabled enableProguardInReleaseBuilds
 
-            proguardFiles getDefaultProguardFile(
-                "proguard-android.txt"
-            ), "proguard-rules.pro"
+            proguardFiles(
+                getDefaultProguardFile(
+                    "proguard-android-optimize.txt"
+                ),
+                "proguard-rules.pro"
+            )
         }
     }
 }
 
 dependencies {
+
     implementation("com.facebook.react:react-android")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
-        implementation jscFlavor
+        implementation("org.webkit:android-jsc:+")
     }
 }
