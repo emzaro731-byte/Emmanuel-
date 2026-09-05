@@ -1,37 +1,16 @@
 {
-  "name": "destiny-ai",
+  "name": "chatgpt-clone",
   "version": "1.0.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "doctor": "expo-doctor",
-    "prebuild": "expo prebuild"
+    "android": "react-native run-android",
+    "start": "react-native start"
   },
   "dependencies": {
-    "@expo/vector-icons": "^15.1.1",
-    "@react-native-async-storage/async-storage": "^2.2.0",
-    "@supabase/supabase-js": "^2.115.0",
-    "base64-arraybuffer": "^1.0.2",
-    "expo": "~54.0.0",
-    "expo-asset": "~12.0.13",
-    "expo-clipboard": "~8.0.8",
-    "expo-constants": "~18.0.10",
-    "expo-file-system": "~19.0.24",
-    "expo-font": "~14.0.10",
-    "expo-image-picker": "~17.0.11",
-    "expo-keep-awake": "~15.0.8",
-    "expo-speech": "~14.0.8",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-url-polyfill": "^2.0.0"
+    "react": "19.0.0",
+    "react-native": "0.79.5"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
-    "babel-preset-expo": "~54.0.0",
-    "typescript": "~5.9.2"
+    "@react-native-community/cli": "18.0.0"
   }
 }
