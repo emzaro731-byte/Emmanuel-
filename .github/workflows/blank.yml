@@ -1,50 +1,132 @@
-name: Build Destiny AI APK
+name: Destiny AI - EAS Android APK
 
 on:
   workflow_dispatch:
+
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
 
 permissions:
   contents: read
 
 jobs:
   build-android:
-    name: Build Android APK
+    name: Build Destiny AI APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
+      # ---------------------------------------
+      # CHECKOUT
+      # ---------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # ---------------------------------------
+      # NODE.JS
+      # ---------------------------------------
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install EAS CLI
-        run: npm install --global eas-cli
-
-      - name: Check EAS
+      # ---------------------------------------
+      # SHOW VERSIONS
+      # ---------------------------------------
+      - name: Check Node and npm
         run: |
-          eas --version
+          echo "Node:"
+          node --version
 
-      - name: Check Expo authentication
+          echo "npm:"
+          npm --version
+
+      # ---------------------------------------
+      # CHECK EXPO TOKEN
+      # ---------------------------------------
+      - name: Check EXPO_TOKEN
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "❌ EXPO_TOKEN is missing"
-            echo "Go to GitHub → Settings → Secrets and variables → Actions"
-            echo "and create a repository secret named EXPO_TOKEN."
+            echo "❌ EXPO_TOKEN is missing."
+            echo ""
+            echo "Go to:"
+            echo "GitHub → Settings → Secrets and variables → Actions"
+            echo ""
+            echo "Create:"
+            echo "EXPO_TOKEN"
+            echo ""
             exit 1
           fi
 
           echo "✅ EXPO_TOKEN is available"
 
-      - name: Build Destiny AI APK
+      # ---------------------------------------
+      # SETUP EXPO + EAS
+      # ---------------------------------------
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # ---------------------------------------
+      # CHECK EAS
+      # ---------------------------------------
+      - name: Check EAS CLI
+        run: |
+          eas --version
+
+      # ---------------------------------------
+      # INSTALL DEPENDENCIES
+      # ---------------------------------------
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      # ---------------------------------------
+      # VERIFY PACKAGE FILES
+      # ---------------------------------------
+      - name: Verify project
+        run: |
+          echo "======================================"
+          echo "DESTINY AI PROJECT"
+          echo "======================================"
+
+          test -f package.json
+          echo "✅ package.json"
+
+          test -f package-lock.json
+          echo "✅ package-lock.json"
+
+          test -f eas.json
+          echo "✅ eas.json"
+
+          echo "======================================"
+
+      # ---------------------------------------
+      # VERIFY EAS CONFIGURATION
+      # ---------------------------------------
+      - name: Check EAS configuration
+        run: |
+          cat eas.json
+
+      # ---------------------------------------
+      # EXPO DOCTOR
+      # ---------------------------------------
+      - name: Run Expo Doctor
+        run: |
+          npx expo-doctor
+
+      # ---------------------------------------
+      # BUILD APK
+      # ---------------------------------------
+      - name: Build Android APK
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
@@ -53,3 +135,20 @@ jobs:
             --profile preview \
             --non-interactive \
             --no-wait
+
+      # ---------------------------------------
+      # COMPLETE
+      # ---------------------------------------
+      - name: Build submitted
+        run: |
+          echo "======================================"
+          echo "✅ DESTINY AI APK BUILD SUBMITTED"
+          echo "======================================"
+          echo ""
+          echo "Your APK is being built by EAS."
+          echo ""
+          echo "Open your Expo/EAS dashboard to"
+          echo "see the build progress and download"
+          echo "the APK when it finishes."
+          echo ""
+          echo "======================================"
