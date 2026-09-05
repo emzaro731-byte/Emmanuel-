@@ -1,160 +1,162 @@
-name: Destiny AI - Build Android APK
+name: Install Destiny AI Packages
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
+    paths:
+      - package.json
+      - .github/workflows/install-packages.yml
 
-  workflow_dispatch:
+permissions:
+  contents: write
 
 jobs:
-  build:
-    name: Build Destiny AI APK
+  install-packages:
+    name: Install Packages and Create Package Lock
     runs-on: ubuntu-latest
 
     steps:
 
-      # --------------------------------------------------
-      # 1. Download repository
-      # --------------------------------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      # -----------------------------
+      # STEP 1: DOWNLOAD YOUR PROJECT
+      # -----------------------------
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      # --------------------------------------------------
-      # 2. Install Node.js
-      # --------------------------------------------------
+      # -----------------------------
+      # STEP 2: INSTALL NODE.JS
+      # -----------------------------
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: 22
+          cache: npm
 
-      # --------------------------------------------------
-      # 3. Show versions
-      # --------------------------------------------------
+      # -----------------------------
+      # STEP 3: SHOW VERSIONS
+      # -----------------------------
       - name: Check Node and npm
         run: |
           node --version
           npm --version
 
-      # --------------------------------------------------
-      # 4. Check project files
-      # --------------------------------------------------
-      - name: Check project files
+      # -----------------------------
+      # STEP 4: INSTALL CURRENT PROJECT
+      # -----------------------------
+      - name: Install Existing Dependencies
         run: |
-          test -f package.json
-          test -f app.json
-          test -f babel.config.js
-          test -f App.tsx || test -f App.js
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
-          echo "Project files found."
-
-      # --------------------------------------------------
-      # 5. Create/update package-lock.json automatically
-      # --------------------------------------------------
-      - name: Install npm dependencies
+      # -----------------------------
+      # STEP 5: INSTALL SUPABASE
+      # -----------------------------
+      - name: Install Supabase
         run: |
-          npm install
+          npm install @supabase/supabase-js
 
-      # --------------------------------------------------
-      # 6. Install Expo SDK-compatible dependencies
-      # --------------------------------------------------
-      - name: Align Expo dependencies
+      # -----------------------------
+      # STEP 6: INSTALL ASYNC STORAGE
+      # -----------------------------
+      - name: Install AsyncStorage
         run: |
-          npx expo install \
-            @supabase/supabase-js \
-            @react-native-async-storage/async-storage \
-            react-native-url-polyfill \
-            base64-arraybuffer \
-            expo-image-picker \
-            expo-file-system \
-            expo-speech \
-            expo-constants \
-            expo-asset \
-            expo-font \
-            expo-keep-awake
+          npm install @react-native-async-storage/async-storage
 
-      # --------------------------------------------------
-      # 7. Make sure React Native matches Expo SDK
-      # --------------------------------------------------
-      - name: Fix Expo dependency versions
+      # -----------------------------
+      # STEP 7: INSTALL URL POLYFILL
+      # -----------------------------
+      - name: Install URL Polyfill
         run: |
-          npx expo install react-native@0.81.5
+          npm install react-native-url-polyfill
 
-      # --------------------------------------------------
-      # 8. Update package-lock.json
-      # --------------------------------------------------
-      - name: Refresh package-lock.json
+      # -----------------------------
+      # STEP 8: INSTALL VECTOR ICONS
+      # -----------------------------
+      - name: Install Vector Icons
         run: |
-          npm install
+          npm install @expo/vector-icons
 
-      # --------------------------------------------------
-      # 9. Display Expo configuration
-      # --------------------------------------------------
-      - name: Check Expo configuration
+      # -----------------------------
+      # STEP 9: INSTALL EXPO IMAGE PICKER
+      # -----------------------------
+      - name: Install Expo Image Picker
         run: |
-          npx expo config --type public
+          npx expo install expo-image-picker --npm
 
-      # --------------------------------------------------
-      # 10. Run Expo Doctor
-      # --------------------------------------------------
+      # -----------------------------
+      # STEP 10: INSTALL EXPO SPEECH
+      # -----------------------------
+      - name: Install Expo Speech
+        run: |
+          npx expo install expo-speech --npm
+
+      # -----------------------------
+      # STEP 11: INSTALL EXPO FILE SYSTEM
+      # -----------------------------
+      - name: Install Expo File System
+        run: |
+          npx expo install expo-file-system --npm
+
+      # -----------------------------
+      # STEP 12: UPDATE EXPO DEPENDENCIES
+      # -----------------------------
+      - name: Fix Expo Package Versions
+        run: |
+          npx expo install --fix --npm
+
+      # -----------------------------
+      # STEP 13: GENERATE PACKAGE LOCK
+      # -----------------------------
+      - name: Generate package-lock.json
+        run: |
+          npm install --package-lock-only
+
+      # -----------------------------
+      # STEP 14: CHECK EXPO PROJECT
+      # -----------------------------
       - name: Run Expo Doctor
         run: |
           npx expo-doctor
 
-      # --------------------------------------------------
-      # 11. Generate Android native project
-      # --------------------------------------------------
-      - name: Generate Android project
+      # -----------------------------
+      # STEP 15: SHOW IMPORTANT FILES
+      # -----------------------------
+      - name: Check Project Files
         run: |
-          npx expo prebuild \
-            --platform android \
-            --non-interactive \
-            --clean \
-            --no-install
+          echo "=============================="
+          echo "DESTINY AI PACKAGE INSTALLATION"
+          echo "=============================="
 
-      # --------------------------------------------------
-      # 12. Make Gradle executable
-      # --------------------------------------------------
-      - name: Prepare Gradle
+          ls -la
+
+          echo ""
+          echo "Checking files..."
+
+          test -f package.json
+          echo "✅ package.json found"
+
+          test -f package-lock.json
+          echo "✅ package-lock.json found"
+
+          echo ""
+          echo "Installed packages:"
+          npm list --depth=0 || true
+
+      # -----------------------------
+      # STEP 16: COMMIT CHANGES
+      # -----------------------------
+      - name: Commit package files
         run: |
-          chmod +x android/gradlew
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # --------------------------------------------------
-      # 13. Build release APK
-      # --------------------------------------------------
-      - name: Build Android APK
-        working-directory: android
-        run: |
-          ./gradlew assembleRelease --no-daemon
+          git add package.json package-lock.json
 
-      # --------------------------------------------------
-      # 14. Find APK
-      # --------------------------------------------------
-      - name: Find generated APK
-        run: |
-          echo "Searching for APK..."
+          git diff --cached --quiet || git commit -m "Install Destiny AI dependencies automatically"
 
-          find android/app/build/outputs \
-            -type f \
-            -name "*.apk" \
-            -print
-
-      # --------------------------------------------------
-      # 15. Upload APK to GitHub Actions
-      # --------------------------------------------------
-      - name: Upload Destiny AI APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Destiny-AI-APK
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-
-      # --------------------------------------------------
-      # 16. Upload package-lock.json as artifact
-      # --------------------------------------------------
-      - name: Upload package-lock.json
-        uses: actions/upload-artifact@v4
-        with:
-          name: Destiny-AI-package-lock
-          path: package-lock.json
-          if-no-files-found: error
+          git push
