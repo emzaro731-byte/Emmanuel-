@@ -1,4 +1,4 @@
-name: Build Destiny AI APK
+name: Destiny AI - Build Android APK
 
 on:
   push:
@@ -9,24 +9,36 @@ on:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build Destiny AI APK
     runs-on: ubuntu-latest
 
     steps:
 
+      # --------------------------------------------------
+      # 1. Download repository
+      # --------------------------------------------------
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
+      # --------------------------------------------------
+      # 2. Install Node.js
+      # --------------------------------------------------
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "20.x"
 
-      - name: Check Node
+      # --------------------------------------------------
+      # 3. Show versions
+      # --------------------------------------------------
+      - name: Check Node and npm
         run: |
           node --version
           npm --version
 
+      # --------------------------------------------------
+      # 4. Check project files
+      # --------------------------------------------------
       - name: Check project files
         run: |
           test -f package.json
@@ -34,10 +46,19 @@ jobs:
           test -f babel.config.js
           test -f App.tsx || test -f App.js
 
-      - name: Install npm dependencies
-        run: npm install
+          echo "Project files found."
 
-      - name: Install Expo compatible packages
+      # --------------------------------------------------
+      # 5. Create/update package-lock.json automatically
+      # --------------------------------------------------
+      - name: Install npm dependencies
+        run: |
+          npm install
+
+      # --------------------------------------------------
+      # 6. Install Expo SDK-compatible dependencies
+      # --------------------------------------------------
+      - name: Align Expo dependencies
         run: |
           npx expo install \
             @supabase/supabase-js \
@@ -52,40 +73,88 @@ jobs:
             expo-font \
             expo-keep-awake
 
-      - name: Verify Expo project
+      # --------------------------------------------------
+      # 7. Make sure React Native matches Expo SDK
+      # --------------------------------------------------
+      - name: Fix Expo dependency versions
+        run: |
+          npx expo install react-native@0.81.5
+
+      # --------------------------------------------------
+      # 8. Update package-lock.json
+      # --------------------------------------------------
+      - name: Refresh package-lock.json
+        run: |
+          npm install
+
+      # --------------------------------------------------
+      # 9. Display Expo configuration
+      # --------------------------------------------------
+      - name: Check Expo configuration
         run: |
           npx expo config --type public
 
+      # --------------------------------------------------
+      # 10. Run Expo Doctor
+      # --------------------------------------------------
       - name: Run Expo Doctor
         run: |
           npx expo-doctor
 
+      # --------------------------------------------------
+      # 11. Generate Android native project
+      # --------------------------------------------------
       - name: Generate Android project
         run: |
           npx expo prebuild \
             --platform android \
             --non-interactive \
+            --clean \
             --no-install
 
-      - name: Make Gradle executable
+      # --------------------------------------------------
+      # 12. Make Gradle executable
+      # --------------------------------------------------
+      - name: Prepare Gradle
         run: |
           chmod +x android/gradlew
 
-      - name: Build release APK
+      # --------------------------------------------------
+      # 13. Build release APK
+      # --------------------------------------------------
+      - name: Build Android APK
+        working-directory: android
         run: |
-          cd android
           ./gradlew assembleRelease --no-daemon
 
-      - name: Find APK
+      # --------------------------------------------------
+      # 14. Find APK
+      # --------------------------------------------------
+      - name: Find generated APK
         run: |
-          find android/app/build/outputs/apk/release \
+          echo "Searching for APK..."
+
+          find android/app/build/outputs \
             -type f \
             -name "*.apk" \
             -print
 
-      - name: Upload APK
+      # --------------------------------------------------
+      # 15. Upload APK to GitHub Actions
+      # --------------------------------------------------
+      - name: Upload Destiny AI APK
         uses: actions/upload-artifact@v4
         with:
           name: Destiny-AI-APK
           path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      # --------------------------------------------------
+      # 16. Upload package-lock.json as artifact
+      # --------------------------------------------------
+      - name: Upload package-lock.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: Destiny-AI-package-lock
+          path: package-lock.json
           if-no-files-found: error
