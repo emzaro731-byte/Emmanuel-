@@ -1,6 +1,11 @@
 import "react-native-url-polyfill/auto";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   ActivityIndicator,
@@ -25,15 +30,6 @@ import {
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import * as ImagePicker from "expo-image-picker";
-import * as Speech from "expo-speech";
-
-import {
-  Feather,
-  Ionicons,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
-
 import { supabase } from "./lib/supabase";
 
 
@@ -48,7 +44,9 @@ type Screen =
   | "settings"
   | "profile";
 
-type AuthMode = "login" | "signup";
+type AuthMode =
+  | "login"
+  | "signup";
 
 type AiMode =
   | "Chat"
@@ -62,7 +60,9 @@ type MediaType =
   | "video"
   | "music";
 
-type MessageRole = "user" | "assistant";
+type MessageRole =
+  | "user"
+  | "assistant";
 
 type Message = {
   id: string;
@@ -86,10 +86,12 @@ type Conversation = {
    CONSTANTS
 ========================================================= */
 
-const STORAGE_KEY = "destiny_ai_conversations_v1";
+const STORAGE_KEY =
+  "destiny_ai_conversations_v1";
 
 const SUPABASE_URL =
-  process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+  "YOUR_SUPABASE_URL";
+
 
 const COLORS = {
   background: "#050816",
@@ -118,12 +120,73 @@ const COLORS = {
 
 
 /* =========================================================
+   SIMPLE NATIVE ICON
+   No Expo icons required
+========================================================= */
+
+function Icon({
+  name,
+  size = 22,
+  color = "#FFFFFF",
+}: {
+  name: string;
+  size?: number;
+  color?: string;
+}) {
+
+  const icons: Record<string, string> = {
+    menu: "☰",
+    close: "×",
+    person: "●",
+    sparkles: "✦",
+    search: "⌕",
+    add: "+",
+    trash: "⌫",
+    bookmark: "★",
+    bookmarkOutline: "☆",
+    chat: "▰",
+    chats: "▱",
+    settings: "⚙",
+    create: "✎",
+    code: "</>",
+    school: "🎓",
+    image: "▧",
+    video: "▶",
+    music: "♫",
+    arrowUp: "↑",
+    copy: "▣",
+    volume: "🔊",
+    chevron: "›",
+    moon: "☾",
+    brain: "♧",
+    shield: "✓",
+    info: "ⓘ",
+    logout: "↪",
+  };
+
+  return (
+    <Text
+      style={{
+        fontSize: size,
+        color,
+        lineHeight: size + 3,
+        fontWeight: "700",
+      }}
+    >
+      {icons[name] || "•"}
+    </Text>
+  );
+}
+
+
+/* =========================================================
    APP
 ========================================================= */
 
 export default function App() {
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
   const [screen, setScreen] =
     useState<Screen>("auth");
@@ -165,7 +228,7 @@ export default function App() {
 
 
   /* =======================================================
-     AUTH STATE
+     AUTH
   ======================================================= */
 
   const [email, setEmail] =
@@ -196,9 +259,8 @@ export default function App() {
      ANIMATION
   ======================================================= */
 
-  const fadeAnim = useRef(
-    new Animated.Value(0)
-  ).current;
+  const fadeAnim =
+    useRef(new Animated.Value(0)).current;
 
 
   /* =======================================================
@@ -211,21 +273,23 @@ export default function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
+    } =
+      supabase.auth.onAuthStateChange(
+        (_event, newSession) => {
 
-        setSession(newSession);
+          setSession(newSession);
 
-        if (newSession) {
-          setScreen("chat");
-        } else {
-          setScreen("auth");
+          if (newSession) {
+            setScreen("chat");
+          } else {
+            setScreen("auth");
+          }
+
         }
+      );
 
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    return () =>
+      subscription.unsubscribe();
 
   }, []);
 
@@ -236,7 +300,8 @@ export default function App() {
 
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } =
+        await supabase.auth.getSession();
 
       setSession(session);
 
@@ -269,7 +334,7 @@ export default function App() {
 
 
   /* =======================================================
-     LOCAL CHAT STORAGE
+     LOCAL STORAGE
   ======================================================= */
 
   async function loadConversations() {
@@ -335,11 +400,9 @@ export default function App() {
 
   useEffect(() => {
 
-    if (conversations.length >= 0) {
-
-      saveConversations(conversations);
-
-    }
+    saveConversations(
+      conversations
+    );
 
   }, [conversations]);
 
@@ -352,7 +415,7 @@ export default function App() {
     useMemo(() => {
 
       return conversations.find(
-        (conversation) =>
+        conversation =>
           conversation.id ===
           activeConversationId
       );
@@ -369,7 +432,8 @@ export default function App() {
 
   function createNewChat() {
 
-    const newConversation: Conversation = {
+    const newConversation:
+      Conversation = {
 
       id:
         Date.now().toString(),
@@ -386,14 +450,15 @@ export default function App() {
         new Date().toISOString(),
 
       pinned: false,
-
     };
 
 
-    setConversations((previous) => [
-      newConversation,
-      ...previous,
-    ]);
+    setConversations(
+      previous => [
+        newConversation,
+        ...previous,
+      ]
+    );
 
     setActiveConversationId(
       newConversation.id
@@ -407,7 +472,7 @@ export default function App() {
 
 
   /* =======================================================
-     DELETE CHAT
+     DELETE
   ======================================================= */
 
   function deleteConversation(
@@ -422,7 +487,6 @@ export default function App() {
           text: "Cancel",
           style: "cancel",
         },
-
         {
           text: "Delete",
           style: "destructive",
@@ -430,9 +494,9 @@ export default function App() {
           onPress: () => {
 
             setConversations(
-              (previous) =>
+              previous =>
                 previous.filter(
-                  (conversation) =>
+                  conversation =>
                     conversation.id !== id
                 )
             );
@@ -456,7 +520,7 @@ export default function App() {
 
 
   /* =======================================================
-     PIN CHAT
+     PIN
   ======================================================= */
 
   function togglePin(
@@ -464,9 +528,9 @@ export default function App() {
   ) {
 
     setConversations(
-      (previous) =>
+      previous =>
         previous.map(
-          (conversation) => {
+          conversation => {
 
             if (
               conversation.id === id
@@ -523,16 +587,13 @@ export default function App() {
           error,
         } =
           await supabase.auth.signUp({
-
             email:
               email.trim(),
-
             password,
-
           });
 
-
-        if (error) throw error;
+        if (error)
+          throw error;
 
 
         Alert.alert(
@@ -540,26 +601,22 @@ export default function App() {
           "Your Destiny AI account has been created."
         );
 
-
       } else {
 
         const {
           error,
         } =
-          await supabase.auth.signInWithPassword({
+          await supabase.auth
+            .signInWithPassword({
+              email:
+                email.trim(),
+              password,
+            });
 
-            email:
-              email.trim(),
-
-            password,
-
-          });
-
-
-        if (error) throw error;
+        if (error)
+          throw error;
 
       }
-
 
     } catch (error: any) {
 
@@ -588,7 +645,6 @@ export default function App() {
       "Logout",
       "Do you want to logout of Destiny AI?",
       [
-
         {
           text: "Cancel",
           style: "cancel",
@@ -598,16 +654,15 @@ export default function App() {
           text: "Logout",
           style: "destructive",
 
-          onPress: async () => {
+          onPress:
+            async () => {
 
-            await supabase.auth.signOut();
+              await supabase.auth.signOut();
 
-            setProfileVisible(false);
+              setProfileVisible(false);
 
-          },
-
+            },
         },
-
       ]
     );
 
@@ -615,7 +670,7 @@ export default function App() {
 
 
   /* =======================================================
-     SEND AI MESSAGE
+     SEND MESSAGE
   ======================================================= */
 
   async function sendMessage() {
@@ -623,8 +678,8 @@ export default function App() {
     const text =
       message.trim();
 
-
-    if (!text || sending) return;
+    if (!text || sending)
+      return;
 
 
     let conversationId =
@@ -633,14 +688,46 @@ export default function App() {
 
     if (!conversationId) {
 
-      createNewChat();
+      const newConversation:
+        Conversation = {
 
-      return;
+        id:
+          Date.now().toString(),
+
+        title:
+          text.slice(0, 35),
+
+        messages: [],
+
+        createdAt:
+          new Date().toISOString(),
+
+        updatedAt:
+          new Date().toISOString(),
+
+        pinned: false,
+      };
+
+
+      setConversations(
+        previous => [
+          newConversation,
+          ...previous,
+        ]
+      );
+
+      setActiveConversationId(
+        newConversation.id
+      );
+
+      conversationId =
+        newConversation.id;
 
     }
 
 
-    const userMessage: Message = {
+    const userMessage:
+      Message = {
 
       id:
         `user-${Date.now()}`,
@@ -653,7 +740,6 @@ export default function App() {
 
       createdAt:
         new Date().toISOString(),
-
     };
 
 
@@ -663,9 +749,9 @@ export default function App() {
 
 
     setConversations(
-      (previous) =>
+      previous =>
         previous.map(
-          (conversation) => {
+          conversation => {
 
             if (
               conversation.id !==
@@ -695,7 +781,6 @@ export default function App() {
 
               updatedAt:
                 new Date().toISOString(),
-
             };
 
           }
@@ -707,12 +792,10 @@ export default function App() {
 
       const response =
         await fetch(
-
           `${SUPABASE_URL}/functions/v1/destiny-ai`,
-
           {
-
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
 
@@ -723,7 +806,6 @@ export default function App() {
                 `Bearer ${
                   session?.access_token || ""
                 }`,
-
             },
 
             body:
@@ -737,11 +819,8 @@ export default function App() {
 
                 conversation_id:
                   conversationId,
-
               }),
-
           }
-
         );
 
 
@@ -765,7 +844,8 @@ export default function App() {
         "Sorry, I could not generate a response.";
 
 
-      const assistantMessage: Message = {
+      const assistantMessage:
+        Message = {
 
         id:
           `ai-${Date.now()}`,
@@ -778,14 +858,13 @@ export default function App() {
 
         createdAt:
           new Date().toISOString(),
-
       };
 
 
       setConversations(
-        (previous) =>
+        previous =>
           previous.map(
-            (conversation) => {
+            conversation => {
 
               if (
                 conversation.id !==
@@ -806,7 +885,6 @@ export default function App() {
 
                 updatedAt:
                   new Date().toISOString(),
-
               };
 
             }
@@ -816,7 +894,8 @@ export default function App() {
 
     } catch (error: any) {
 
-      const errorMessage: Message = {
+      const errorMessage:
+        Message = {
 
         id:
           `error-${Date.now()}`,
@@ -825,18 +904,20 @@ export default function App() {
           "assistant",
 
         content:
-          `⚠️ ${error.message || "Unable to connect to Destiny AI."}`,
+          `⚠️ ${
+            error.message ||
+            "Unable to connect to Destiny AI."
+          }`,
 
         createdAt:
           new Date().toISOString(),
-
       };
 
 
       setConversations(
-        (previous) =>
+        previous =>
           previous.map(
-            (conversation) =>
+            conversation =>
               conversation.id ===
               conversationId
                 ? {
@@ -847,8 +928,8 @@ export default function App() {
                       ...conversation.messages,
                       errorMessage,
                     ],
-
                   }
+
                 : conversation
           )
       );
@@ -864,7 +945,7 @@ export default function App() {
 
 
   /* =======================================================
-     COPY MESSAGE
+     COPY
   ======================================================= */
 
   function copyMessage(
@@ -882,142 +963,39 @@ export default function App() {
 
 
   /* =======================================================
-     SPEAK MESSAGE
+     SPEECH
+     Native fallback.
   ======================================================= */
 
   function speakMessage(
     text: string
   ) {
 
-    Speech.stop();
-
-    Speech.speak(text, {
-      language: "en-US",
-      rate: 0.95,
-    });
+    Alert.alert(
+      "Text to Speech",
+      "Native text-to-speech is not installed yet."
+    );
 
   }
 
 
   /* =======================================================
-     PICK IMAGE
+     IMAGE PICKER
+     Native fallback.
   ======================================================= */
 
   async function pickImage() {
 
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-
-    if (
-      !permission.granted
-    ) {
-
-      Alert.alert(
-        "Permission Required",
-        "Please allow photo access."
-      );
-
-      return;
-
-    }
-
-
-    const result =
-      await ImagePicker.launchImageLibraryAsync({
-
-        mediaTypes:
-          ["images"],
-
-        allowsEditing:
-          true,
-
-        quality:
-          0.8,
-
-      });
-
-
-    if (!result.canceled) {
-
-      setSelectedImage(
-        result.assets[0].uri
-      );
-
-    }
+    Alert.alert(
+      "Image Picker",
+      "Native image picker is not installed yet."
+    );
 
   }
 
 
   /* =======================================================
-     UPLOAD IMAGE
-  ======================================================= */
-
-  async function uploadImageToSupabase(
-    uri: string
-  ) {
-
-    if (!session?.user) {
-
-      throw new Error(
-        "Please login first."
-      );
-
-    }
-
-
-    const response =
-      await fetch(uri);
-
-    const blob =
-      await response.blob();
-
-
-    const fileName =
-      `${session.user.id}/${Date.now()}.jpg`;
-
-
-    const {
-      error,
-    } =
-      await supabase.storage
-        .from("Image")
-        .upload(
-          fileName,
-          blob,
-          {
-            contentType:
-              "image/jpeg",
-            upsert:
-              false,
-          }
-        );
-
-
-    if (error) {
-
-      throw error;
-
-    }
-
-
-    const {
-      data,
-    } =
-      supabase.storage
-        .from("Image")
-        .getPublicUrl(
-          fileName
-        );
-
-
-    return data.publicUrl;
-
-  }
-
-
-  /* =======================================================
-     STUDIO GENERATE
+     GENERATE MEDIA
   ======================================================= */
 
   async function generateMedia(
@@ -1043,45 +1021,41 @@ export default function App() {
 
       let endpoint = "";
 
-      if (type === "image") {
+      if (
+        type === "image"
+      ) {
+
         endpoint =
           "generate-image";
+
       }
 
-      if (type === "video") {
+      if (
+        type === "video"
+      ) {
+
         endpoint =
           "generate-video";
+
       }
 
-      if (type === "music") {
+      if (
+        type === "music"
+      ) {
+
         endpoint =
           "generate-music";
-      }
-
-
-      let uploadedImageUrl:
-        string | null =
-        null;
-
-
-      if (selectedImage) {
-
-        uploadedImageUrl =
-          await uploadImageToSupabase(
-            selectedImage
-          );
 
       }
 
 
       const response =
         await fetch(
-
           `${SUPABASE_URL}/functions/v1/${endpoint}`,
-
           {
 
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
 
@@ -1092,7 +1066,6 @@ export default function App() {
                 `Bearer ${
                   session?.access_token || ""
                 }`,
-
             },
 
             body:
@@ -1100,14 +1073,8 @@ export default function App() {
 
                 prompt:
                   studioPrompt,
-
-                image_url:
-                  uploadedImageUrl,
-
               }),
-
           }
-
         );
 
 
@@ -1134,8 +1101,6 @@ export default function App() {
 
       setStudioPrompt("");
 
-      setSelectedImage(null);
-
 
     } catch (error: any) {
 
@@ -1155,13 +1120,13 @@ export default function App() {
 
 
   /* =======================================================
-     FILTERED CONVERSATIONS
+     FILTER
   ======================================================= */
 
   const filteredConversations =
     conversations
       .filter(
-        (conversation) =>
+        conversation =>
           conversation.title
             .toLowerCase()
             .includes(
@@ -1176,22 +1141,29 @@ export default function App() {
 
 
   /* =======================================================
-     LOADING SCREEN
+     LOADING
   ======================================================= */
 
   if (loading) {
 
     return (
 
-      <View style={styles.loadingScreen}>
+      <View
+        style={styles.loadingScreen}
+      >
 
         <StatusBar
           barStyle="light-content"
+          backgroundColor={
+            COLORS.background
+          }
         />
 
-        <View style={styles.logoLarge}>
+        <View
+          style={styles.logoLarge}
+        >
 
-          <Ionicons
+          <Icon
             name="sparkles"
             size={42}
             color="#FFFFFF"
@@ -1199,18 +1171,24 @@ export default function App() {
 
         </View>
 
-        <Text style={styles.loadingTitle}>
+        <Text
+          style={styles.loadingTitle}
+        >
           DESTINY AI
         </Text>
 
-        <Text style={styles.loadingSubtitle}>
+        <Text
+          style={styles.loadingSubtitle}
+        >
           Your intelligent future
         </Text>
 
         <ActivityIndicator
           size="large"
           color={COLORS.primary}
-          style={{ marginTop: 30 }}
+          style={{
+            marginTop: 30,
+          }}
         />
 
       </View>
@@ -1221,10 +1199,12 @@ export default function App() {
 
 
   /* =======================================================
-     AUTH SCREEN
+     AUTH
   ======================================================= */
 
-  if (screen === "auth") {
+  if (
+    screen === "auth"
+  ) {
 
     return (
 
@@ -1234,6 +1214,9 @@ export default function App() {
 
         <StatusBar
           barStyle="light-content"
+          backgroundColor={
+            COLORS.background
+          }
         />
 
 
@@ -1243,10 +1226,11 @@ export default function App() {
           }
         >
 
+          <View
+            style={styles.authLogo}
+          >
 
-          <View style={styles.authLogo}>
-
-            <Ionicons
+            <Icon
               name="sparkles"
               size={40}
               color="#FFFFFF"
@@ -1255,23 +1239,28 @@ export default function App() {
           </View>
 
 
-          <Text style={styles.authTitle}>
+          <Text
+            style={styles.authTitle}
+          >
             Destiny AI
           </Text>
 
 
-          <Text style={styles.authSubtitle}>
-
+          <Text
+            style={styles.authSubtitle}
+          >
             Your intelligent companion for
             creating, learning and building.
-
           </Text>
 
 
-          <View style={styles.authCard}>
+          <View
+            style={styles.authCard}
+          >
 
-
-            <Text style={styles.authCardTitle}>
+            <Text
+              style={styles.authCardTitle}
+            >
 
               {authMode === "login"
                 ? "Welcome back"
@@ -1280,7 +1269,9 @@ export default function App() {
             </Text>
 
 
-            <Text style={styles.authCardSubtitle}>
+            <Text
+              style={styles.authCardSubtitle}
+            >
 
               {authMode === "login"
                 ? "Login to continue to Destiny AI"
@@ -1290,53 +1281,36 @@ export default function App() {
 
 
             <TextInput
-
               value={email}
-
               onChangeText={setEmail}
-
               placeholder="Email address"
-
               placeholderTextColor={
                 COLORS.textMuted
               }
-
               keyboardType="email-address"
-
               autoCapitalize="none"
-
               style={styles.authInput}
-
             />
 
 
             <TextInput
-
               value={password}
-
-              onChangeText={setPassword}
-
+              onChangeText={
+                setPassword
+              }
               placeholder="Password"
-
               placeholderTextColor={
                 COLORS.textMuted
               }
-
               secureTextEntry
-
               style={styles.authInput}
-
             />
 
 
             <TouchableOpacity
-
               onPress={handleAuth}
-
               disabled={authLoading}
-
               style={styles.authButton}
-
             >
 
               {authLoading ? (
@@ -1347,7 +1321,11 @@ export default function App() {
 
               ) : (
 
-                <Text style={styles.authButtonText}>
+                <Text
+                  style={
+                    styles.authButtonText
+                  }
+                >
 
                   {authMode === "login"
                     ? "Login"
@@ -1361,23 +1339,20 @@ export default function App() {
 
 
             <TouchableOpacity
-
               onPress={() =>
-
                 setAuthMode(
                   authMode === "login"
                     ? "signup"
                     : "login"
                 )
-
               }
-
               style={styles.switchAuth}
-
             >
 
               <Text
-                style={styles.switchAuthText}
+                style={
+                  styles.switchAuthText
+                }
               >
 
                 {authMode === "login"
@@ -1387,7 +1362,9 @@ export default function App() {
               </Text>
 
               <Text
-                style={styles.switchAuthLink}
+                style={
+                  styles.switchAuthLink
+                }
               >
 
                 {authMode === "login"
@@ -1397,7 +1374,6 @@ export default function App() {
               </Text>
 
             </TouchableOpacity>
-
 
           </View>
 
@@ -1411,22 +1387,28 @@ export default function App() {
 
 
   /* =======================================================
-     MAIN APP
+     MAIN
   ======================================================= */
 
   return (
 
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={styles.container}
+    >
 
       <StatusBar
         barStyle="light-content"
+        backgroundColor={
+          COLORS.background
+        }
       />
 
 
       {/* HEADER */}
 
-      <View style={styles.header}>
-
+      <View
+        style={styles.header}
+      >
 
         <TouchableOpacity
           onPress={() =>
@@ -1435,10 +1417,10 @@ export default function App() {
           style={styles.headerButton}
         >
 
-          <Feather
+          <Icon
             name="menu"
-            size={24}
-            color={COLORS.text}
+            size={25}
+            color="#FFFFFF"
           />
 
         </TouchableOpacity>
@@ -1451,9 +1433,11 @@ export default function App() {
           style={styles.brand}
         >
 
-          <View style={styles.brandIcon}>
+          <View
+            style={styles.brandIcon}
+          >
 
-            <Ionicons
+            <Icon
               name="sparkles"
               size={17}
               color="#FFFFFF"
@@ -1461,7 +1445,9 @@ export default function App() {
 
           </View>
 
-          <Text style={styles.brandText}>
+          <Text
+            style={styles.brandText}
+          >
             Destiny AI
           </Text>
 
@@ -1475,9 +1461,9 @@ export default function App() {
           style={styles.profileButton}
         >
 
-          <Ionicons
+          <Icon
             name="person"
-            size={20}
+            size={17}
             color="#FFFFFF"
           />
 
@@ -1486,103 +1472,118 @@ export default function App() {
       </View>
 
 
-      {/* CHAT SCREEN */}
+      {/* CHAT */}
 
       {screen === "chat" && (
 
         <ChatScreen
-          conversation={activeConversation}
+          conversation={
+            activeConversation
+          }
           message={message}
           setMessage={setMessage}
           sending={sending}
-          sendMessage={sendMessage}
+          sendMessage={
+            sendMessage
+          }
           aiMode={aiMode}
           setAiMode={setAiMode}
-          copyMessage={copyMessage}
-          speakMessage={speakMessage}
-          createNewChat={createNewChat}
-          pickImage={pickImage}
+          copyMessage={
+            copyMessage
+          }
+          speakMessage={
+            speakMessage
+          }
+          createNewChat={
+            createNewChat
+          }
+          pickImage={
+            pickImage
+          }
         />
 
       )}
 
 
-      {/* STUDIO SCREEN */}
+      {/* STUDIO */}
 
       {screen === "studio" && (
 
         <StudioScreen
-
-          studioPrompt={studioPrompt}
-
+          studioPrompt={
+            studioPrompt
+          }
           setStudioPrompt={
             setStudioPrompt
           }
-
           selectedImage={
             selectedImage
           }
-
-          pickImage={pickImage}
-
+          pickImage={
+            pickImage
+          }
           studioLoading={
             studioLoading
           }
-
           generateMedia={
             generateMedia
           }
-
         />
 
       )}
 
 
-      {/* SETTINGS SCREEN */}
+      {/* SETTINGS */}
 
       {screen === "settings" && (
 
         <SettingsScreen
-          email={session?.user?.email}
+          email={
+            session?.user?.email
+          }
         />
 
       )}
 
 
-      {/* BOTTOM NAVIGATION */}
+      {/* BOTTOM NAV */}
 
-      <View style={styles.bottomNav}>
-
+      <View
+        style={styles.bottomNav}
+      >
 
         <NavButton
-          icon="chatbubble-ellipses"
+          icon="chat"
           label="Chat"
-          active={screen === "chat"}
+          active={
+            screen === "chat"
+          }
           onPress={() =>
             setScreen("chat")
           }
         />
 
-
         <NavButton
-          icon="color-wand"
+          icon="create"
           label="Create"
-          active={screen === "studio"}
+          active={
+            screen === "studio"
+          }
           onPress={() =>
             setScreen("studio")
           }
         />
 
-
         <NavButton
           icon="settings"
           label="Settings"
-          active={screen === "settings"}
+          active={
+            screen === "settings"
+          }
           onPress={() =>
             setScreen("settings")
           }
         />
-
 
       </View>
 
@@ -1590,61 +1591,75 @@ export default function App() {
       {/* SIDEBAR */}
 
       <Modal
-        visible={sidebarVisible}
+        visible={
+          sidebarVisible
+        }
         transparent
         animationType="slide"
       >
 
-        <View style={styles.sidebarOverlay}>
+        <View
+          style={
+            styles.sidebarOverlay
+          }
+        >
 
+          <View
+            style={styles.sidebar}
+          >
 
-          <View style={styles.sidebar}>
-
-
-            <View style={styles.sidebarHeader}>
-
+            <View
+              style={
+                styles.sidebarHeader
+              }
+            >
 
               <Text
-                style={styles.sidebarTitle}
+                style={
+                  styles.sidebarTitle
+                }
               >
                 Conversations
               </Text>
 
-
               <TouchableOpacity
                 onPress={() =>
-                  setSidebarVisible(false)
+                  setSidebarVisible(
+                    false
+                  )
                 }
               >
 
-                <Ionicons
+                <Icon
                   name="close"
-                  size={26}
+                  size={30}
                   color="#FFFFFF"
                 />
 
               </TouchableOpacity>
 
-
             </View>
 
 
             <TouchableOpacity
-
-              onPress={createNewChat}
-
-              style={styles.newChatButton}
-
+              onPress={
+                createNewChat
+              }
+              style={
+                styles.newChatButton
+              }
             >
 
-              <Ionicons
+              <Icon
                 name="add"
-                size={22}
+                size={24}
                 color="#FFFFFF"
               />
 
               <Text
-                style={styles.newChatText}
+                style={
+                  styles.newChatText
+                }
               >
                 New Chat
               </Text>
@@ -1656,47 +1671,43 @@ export default function App() {
               style={styles.searchBox}
             >
 
-              <Ionicons
+              <Icon
                 name="search"
-                size={18}
-                color={COLORS.textMuted}
+                size={22}
+                color={
+                  COLORS.textMuted
+                }
               />
 
               <TextInput
-
                 value={searchText}
-
                 onChangeText={
                   setSearchText
                 }
-
                 placeholder="Search chats"
-
                 placeholderTextColor={
                   COLORS.textMuted
                 }
-
-                style={styles.searchInput}
-
+                style={
+                  styles.searchInput
+                }
               />
 
             </View>
 
 
             <FlatList
-
               data={
                 filteredConversations
               }
-
-              keyExtractor={(item) =>
-                item.id
+              keyExtractor={
+                item => item.id
               }
-
-              renderItem={({ item }) => (
+              renderItem={({
+                item,
+              }) => (
 
                 <TouchableOpacity
-
                   onPress={() => {
 
                     setActiveConversationId(
@@ -1705,12 +1716,14 @@ export default function App() {
 
                     setScreen("chat");
 
-                    setSidebarVisible(false);
+                    setSidebarVisible(
+                      false
+                    );
 
                   }}
-
-                  style={styles.conversationItem}
-
+                  style={
+                    styles.conversationItem
+                  }
                 >
 
                   <View
@@ -1727,7 +1740,7 @@ export default function App() {
                     >
 
                       {item.pinned
-                        ? "📌 "
+                        ? "★ "
                         : ""}
 
                       {item.title}
@@ -1739,18 +1752,22 @@ export default function App() {
 
                   <TouchableOpacity
                     onPress={() =>
-                      togglePin(item.id)
+                      togglePin(
+                        item.id
+                      )
                     }
                   >
 
-                    <Ionicons
+                    <Icon
                       name={
                         item.pinned
                           ? "bookmark"
-                          : "bookmark-outline"
+                          : "bookmarkOutline"
                       }
-                      size={18}
-                      color={COLORS.gold}
+                      size={19}
+                      color={
+                        COLORS.gold
+                      }
                     />
 
                   </TouchableOpacity>
@@ -1767,16 +1784,15 @@ export default function App() {
                     }}
                   >
 
-                    <Ionicons
-                      name="trash-outline"
-                      size={18}
+                    <Icon
+                      name="trash"
+                      size={19}
                       color={
                         COLORS.textMuted
                       }
                     />
 
                   </TouchableOpacity>
-
 
                 </TouchableOpacity>
 
@@ -1785,12 +1801,14 @@ export default function App() {
               ListEmptyComponent={
 
                 <View
-                  style={styles.emptyHistory}
+                  style={
+                    styles.emptyHistory
+                  }
                 >
 
-                  <Ionicons
-                    name="chatbubbles-outline"
-                    size={45}
+                  <Icon
+                    name="chats"
+                    size={42}
                     color={
                       COLORS.textMuted
                     }
@@ -1812,11 +1830,15 @@ export default function App() {
 
 
             <View
-              style={styles.sidebarFooter}
+              style={
+                styles.sidebarFooter
+              }
             >
 
               <Text
-                style={styles.sidebarEmail}
+                style={
+                  styles.sidebarEmail
+                }
                 numberOfLines={1}
               >
 
@@ -1827,7 +1849,6 @@ export default function App() {
 
             </View>
 
-
           </View>
 
         </View>
@@ -1835,33 +1856,42 @@ export default function App() {
       </Modal>
 
 
-      {/* PROFILE MODAL */}
+      {/* PROFILE */}
 
       <Modal
-        visible={profileVisible}
+        visible={
+          profileVisible
+        }
         transparent
         animationType="fade"
       >
 
         <Pressable
-          style={styles.profileOverlay}
+          style={
+            styles.profileOverlay
+          }
           onPress={() =>
-            setProfileVisible(false)
+            setProfileVisible(
+              false
+            )
           }
         >
 
           <Pressable
-            style={styles.profileMenu}
+            style={
+              styles.profileMenu
+            }
           >
 
-
             <View
-              style={styles.profileAvatarLarge}
+              style={
+                styles.profileAvatarLarge
+              }
             >
 
-              <Ionicons
+              <Icon
                 name="person"
-                size={26}
+                size={24}
                 color="#FFFFFF"
               />
 
@@ -1869,7 +1899,9 @@ export default function App() {
 
 
             <Text
-              style={styles.profileEmail}
+              style={
+                styles.profileEmail
+              }
             >
 
               {session?.user?.email ||
@@ -1879,39 +1911,51 @@ export default function App() {
 
 
             <ProfileOption
-              icon="person-outline"
+              icon="person"
               label="Profile"
               onPress={() => {
-                setProfileVisible(false);
-                setScreen("profile");
+
+                setProfileVisible(
+                  false
+                );
+
+                setScreen(
+                  "profile"
+                );
+
               }}
             />
 
 
             <ProfileOption
-              icon="settings-outline"
+              icon="settings"
               label="Settings"
               onPress={() => {
-                setProfileVisible(false);
-                setScreen("settings");
+
+                setProfileVisible(
+                  false
+                );
+
+                setScreen(
+                  "settings"
+                );
+
               }}
             />
 
 
             <ProfileOption
-              icon="log-out-outline"
+              icon="logout"
               label="Logout"
               danger
               onPress={logout}
             />
-
 
           </Pressable>
 
         </Pressable>
 
       </Modal>
-
 
     </SafeAreaView>
 
@@ -1927,61 +1971,46 @@ export default function App() {
 function ChatScreen({
 
   conversation,
-
   message,
-
   setMessage,
-
   sending,
-
   sendMessage,
-
   aiMode,
-
   setAiMode,
-
   copyMessage,
-
   speakMessage,
-
   createNewChat,
-
   pickImage,
 
 }: any) {
 
-
   const modes: AiMode[] = [
-
     "Chat",
-
     "Code",
-
     "Study",
-
     "Write",
-
     "Creative",
-
   ];
 
 
   return (
 
     <KeyboardAvoidingView
-
-      style={{ flex: 1 }}
-
+      style={{
+        flex: 1,
+      }}
       behavior={
         Platform.OS === "ios"
           ? "padding"
           : undefined
       }
-
     >
 
-
-      <View style={styles.chatContainer}>
+      <View
+        style={
+          styles.chatContainer
+        }
+      >
 
 
         {!conversation ||
@@ -1993,12 +2022,13 @@ function ChatScreen({
             }
           >
 
-
             <View
-              style={styles.welcomeLogo}
+              style={
+                styles.welcomeLogo
+              }
             >
 
-              <Ionicons
+              <Icon
                 name="sparkles"
                 size={38}
                 color="#FFFFFF"
@@ -2008,34 +2038,38 @@ function ChatScreen({
 
 
             <Text
-              style={styles.welcomeTitle}
+              style={
+                styles.welcomeTitle
+              }
             >
               How can I help you?
             </Text>
 
 
             <Text
-              style={styles.welcomeSubtitle}
+              style={
+                styles.welcomeSubtitle
+              }
             >
-
-              Ask Destiny AI anything. Create,
-              learn, write, code and explore.
-
+              Ask Destiny AI anything.
+              Create, learn, write,
+              code and explore.
             </Text>
 
 
             <View
-              style={styles.modeGrid}
+              style={
+                styles.modeGrid
+              }
             >
 
               <QuickAction
-                icon="code-slash"
+                icon="code"
                 label="Code"
                 onPress={() =>
                   setAiMode("Code")
                 }
               />
-
 
               <QuickAction
                 icon="school"
@@ -2045,7 +2079,6 @@ function ChatScreen({
                 }
               />
 
-
               <QuickAction
                 icon="create"
                 label="Write"
@@ -2054,57 +2087,47 @@ function ChatScreen({
                 }
               />
 
-
               <QuickAction
-                icon="color-wand"
+                icon="sparkles"
                 label="Create"
                 onPress={() =>
-                  setAiMode("Creative")
+                  setAiMode(
+                    "Creative"
+                  )
                 }
               />
-
 
             </View>
 
-
           </ScrollView>
-
 
         ) : (
 
-
           <FlatList
-
             data={
               conversation.messages
             }
-
-            keyExtractor={(item) =>
-              item.id
+            keyExtractor={
+              item => item.id
             }
-
             contentContainerStyle={
               styles.messagesList
             }
-
-            renderItem={({ item }) => (
+            renderItem={({
+              item,
+            }) => (
 
               <MessageBubble
-
                 message={item}
-
                 copyMessage={
                   copyMessage
                 }
-
                 speakMessage={
                   speakMessage
                 }
-
               />
 
             )}
-
             ListFooterComponent={
 
               sending ? (
@@ -2116,15 +2139,17 @@ function ChatScreen({
                 >
 
                   <ActivityIndicator
-                    color={COLORS.primary}
+                    color={
+                      COLORS.primary
+                    }
                   />
 
                   <Text
-                    style={styles.typingText}
+                    style={
+                      styles.typingText
+                    }
                   >
-
                     Destiny AI is thinking...
-
                   </Text>
 
                 </View>
@@ -2132,63 +2157,47 @@ function ChatScreen({
               ) : null
 
             }
-
           />
-
 
         )}
 
 
-        {/* AI MODE */}
+        {/* MODE SELECTOR */}
 
         <ScrollView
-
           horizontal
-
           showsHorizontalScrollIndicator={
             false
           }
-
           contentContainerStyle={
             styles.modeSelector
           }
-
         >
 
-          {modes.map((mode) => (
+          {modes.map(mode => (
 
             <TouchableOpacity
-
               key={mode}
-
               onPress={() =>
                 setAiMode(mode)
               }
-
               style={[
                 styles.modeButton,
 
                 aiMode === mode &&
                   styles.modeButtonActive,
-
               ]}
-
             >
 
               <Text
-
                 style={[
                   styles.modeButtonText,
 
                   aiMode === mode &&
                     styles.modeButtonTextActive,
-
                 ]}
-
               >
-
                 {mode}
-
               </Text>
 
             </TouchableOpacity>
@@ -2201,18 +2210,23 @@ function ChatScreen({
         {/* INPUT */}
 
         <View
-          style={styles.inputArea}
+          style={
+            styles.inputArea
+          }
         >
 
-
           <TouchableOpacity
-            onPress={pickImage}
-            style={styles.attachButton}
+            onPress={
+              pickImage
+            }
+            style={
+              styles.attachButton
+            }
           >
 
-            <Ionicons
+            <Icon
               name="add"
-              size={25}
+              size={27}
               color={
                 COLORS.textSecondary
               }
@@ -2222,42 +2236,38 @@ function ChatScreen({
 
 
           <TextInput
-
             value={message}
-
-            onChangeText={setMessage}
-
-            placeholder={`Message Destiny AI (${aiMode})`}
-
+            onChangeText={
+              setMessage
+            }
+            placeholder={
+              `Message Destiny AI (${aiMode})`
+            }
             placeholderTextColor={
               COLORS.textMuted
             }
-
             multiline
-
-            style={styles.chatInput}
-
+            style={
+              styles.chatInput
+            }
           />
 
 
           <TouchableOpacity
-
-            onPress={sendMessage}
-
+            onPress={
+              sendMessage
+            }
             disabled={
               !message.trim() ||
               sending
             }
-
             style={[
               styles.sendButton,
 
               (!message.trim() ||
                 sending) &&
                 styles.sendButtonDisabled,
-
             ]}
-
           >
 
             {sending ? (
@@ -2269,9 +2279,9 @@ function ChatScreen({
 
             ) : (
 
-              <Ionicons
-                name="arrow-up"
-                size={22}
+              <Icon
+                name="arrowUp"
+                size={24}
                 color="#FFFFFF"
               />
 
@@ -2279,9 +2289,7 @@ function ChatScreen({
 
           </TouchableOpacity>
 
-
         </View>
-
 
       </View>
 
@@ -2293,46 +2301,43 @@ function ChatScreen({
 
 
 /* =========================================================
-   MESSAGE BUBBLE
+   MESSAGE
 ========================================================= */
 
 function MessageBubble({
 
   message,
-
   copyMessage,
-
   speakMessage,
 
 }: any) {
 
   const isUser =
-    message.role === "user";
+    message.role ===
+    "user";
 
 
   return (
 
     <View
-
       style={[
         styles.messageRow,
 
         isUser
           ? styles.userRow
           : styles.aiRow,
-
       ]}
-
     >
-
 
       {!isUser && (
 
         <View
-          style={styles.aiAvatar}
+          style={
+            styles.aiAvatar
+          }
         >
 
-          <Ionicons
+          <Icon
             name="sparkles"
             size={15}
             color="#FFFFFF"
@@ -2344,31 +2349,30 @@ function MessageBubble({
 
 
       <View
-
         style={[
           styles.messageBubble,
 
           isUser
             ? styles.userBubble
             : styles.assistantBubble,
-
         ]}
-
       >
 
         <Text
-          style={styles.messageText}
+          style={
+            styles.messageText
+          }
         >
-
           {message.content}
-
         </Text>
 
 
         {!isUser && (
 
           <View
-            style={styles.messageActions}
+            style={
+              styles.messageActions
+            }
           >
 
             <TouchableOpacity
@@ -2379,9 +2383,9 @@ function MessageBubble({
               }
             >
 
-              <Ionicons
-                name="copy-outline"
-                size={17}
+              <Icon
+                name="copy"
+                size={18}
                 color={
                   COLORS.textSecondary
                 }
@@ -2401,8 +2405,8 @@ function MessageBubble({
               }}
             >
 
-              <Ionicons
-                name="volume-high-outline"
+              <Icon
+                name="volume"
                 size={18}
                 color={
                   COLORS.textSecondary
@@ -2431,15 +2435,10 @@ function MessageBubble({
 function StudioScreen({
 
   studioPrompt,
-
   setStudioPrompt,
-
   selectedImage,
-
   pickImage,
-
   studioLoading,
-
   generateMedia,
 
 }: any) {
@@ -2447,52 +2446,53 @@ function StudioScreen({
   return (
 
     <ScrollView
-      style={styles.studioContainer}
+      style={
+        styles.studioContainer
+      }
     >
 
-
       <Text
-        style={styles.studioTitle}
+        style={
+          styles.studioTitle
+        }
       >
         Creation Studio
       </Text>
 
 
       <Text
-        style={styles.studioSubtitle}
+        style={
+          styles.studioSubtitle
+        }
       >
-
-        Create images, videos and music
-        with artificial intelligence.
-
+        Create images, videos and
+        music with artificial
+        intelligence.
       </Text>
 
 
       <TextInput
-
         value={studioPrompt}
-
         onChangeText={
           setStudioPrompt
         }
-
         placeholder="Describe what you want to create..."
-
         placeholderTextColor={
           COLORS.textMuted
         }
-
         multiline
-
-        style={styles.studioInput}
-
+        style={
+          styles.studioInput
+        }
       />
 
 
       {selectedImage && (
 
         <View
-          style={styles.selectedImageContainer}
+          style={
+            styles.selectedImageContainer
+          }
         >
 
           <Image
@@ -2510,17 +2510,18 @@ function StudioScreen({
 
 
       <TouchableOpacity
-
-        onPress={pickImage}
-
-        style={styles.uploadImageButton}
-
+        onPress={
+          pickImage
+        }
+        style={
+          styles.uploadImageButton
+        }
       >
 
-        <Ionicons
-          name="image-outline"
-          size={22}
-          color={COLORS.text}
+        <Icon
+          name="image"
+          size={23}
+          color="#FFFFFF"
         />
 
         <Text
@@ -2528,66 +2529,55 @@ function StudioScreen({
             styles.uploadImageText
           }
         >
-
-          {selectedImage
-            ? "Change Image"
-            : "Upload Reference Image"}
-
+          Upload Reference Image
         </Text>
 
       </TouchableOpacity>
 
 
       <StudioButton
-
         icon="image"
-
         title="Generate Image"
-
         subtitle="Create AI artwork"
-
-        loading={studioLoading}
-
-        onPress={() =>
-          generateMedia("image")
+        loading={
+          studioLoading
         }
-
+        onPress={() =>
+          generateMedia(
+            "image"
+          )
+        }
       />
 
 
       <StudioButton
-
-        icon="videocam"
-
+        icon="video"
         title="Generate Video"
-
         subtitle="Turn your idea into video"
-
-        loading={studioLoading}
-
-        onPress={() =>
-          generateMedia("video")
+        loading={
+          studioLoading
         }
-
+        onPress={() =>
+          generateMedia(
+            "video"
+          )
+        }
       />
 
 
       <StudioButton
-
-        icon="musical-notes"
-
+        icon="music"
         title="Generate Music"
-
         subtitle="Create AI music"
-
-        loading={studioLoading}
-
-        onPress={() =>
-          generateMedia("music")
+        loading={
+          studioLoading
         }
-
+        onPress={() =>
+          generateMedia(
+            "music"
+          )
+        }
       />
-
 
     </ScrollView>
 
@@ -2607,82 +2597,63 @@ function SettingsScreen({
   return (
 
     <ScrollView
-      style={styles.settingsContainer}
+      style={
+        styles.settingsContainer
+      }
     >
 
-
       <Text
-        style={styles.settingsTitle}
+        style={
+          styles.settingsTitle
+        }
       >
         Settings
       </Text>
 
 
       <SettingRow
-
-        icon="person-outline"
-
+        icon="person"
         title="Account"
-
-        subtitle={email}
-
+        subtitle={
+          email ||
+          "Not logged in"
+        }
       />
 
 
       <SettingRow
-
-        icon="moon-outline"
-
+        icon="moon"
         title="Appearance"
-
         subtitle="Dark Mode"
-
       />
 
 
       <SettingRow
-
-        icon="hardware-chip-outline"
-
+        icon="brain"
         title="AI Preferences"
-
         subtitle="Manage AI settings"
-
       />
 
 
       <SettingRow
-
-        icon="brain-outline"
-
+        icon="brain"
         title="Memory"
-
         subtitle="Control what Destiny AI remembers"
-
       />
 
 
       <SettingRow
-
-        icon="shield-checkmark-outline"
-
+        icon="shield"
         title="Privacy"
-
         subtitle="Manage your privacy"
-
       />
 
 
       <SettingRow
-
-        icon="information-circle-outline"
-
+        icon="info"
         title="About Destiny AI"
-
         subtitle="Version 2.0"
-
       />
-
 
     </ScrollView>
 
@@ -2692,7 +2663,7 @@ function SettingsScreen({
 
 
 /* =========================================================
-   SMALL COMPONENTS
+   NAV BUTTON
 ========================================================= */
 
 function NavButton({
@@ -2706,37 +2677,30 @@ function NavButton({
 
     <TouchableOpacity
       onPress={onPress}
-      style={styles.navButton}
+      style={
+        styles.navButton
+      }
     >
 
-      <Ionicons
-
+      <Icon
         name={icon}
-
         size={22}
-
         color={
           active
             ? COLORS.primary
             : COLORS.textMuted
         }
-
       />
 
       <Text
-
         style={[
           styles.navLabel,
 
           active &&
             styles.navLabelActive,
-
         ]}
-
       >
-
         {label}
-
       </Text>
 
     </TouchableOpacity>
@@ -2745,6 +2709,10 @@ function NavButton({
 
 }
 
+
+/* =========================================================
+   QUICK ACTION
+========================================================= */
 
 function QuickAction({
   icon,
@@ -2755,25 +2723,24 @@ function QuickAction({
   return (
 
     <TouchableOpacity
-
       onPress={onPress}
-
-      style={styles.quickAction}
-
+      style={
+        styles.quickAction
+      }
     >
 
-      <Ionicons
-
+      <Icon
         name={icon}
-
-        size={26}
-
-        color={COLORS.primary}
-
+        size={27}
+        color={
+          COLORS.primary
+        }
       />
 
       <Text
-        style={styles.quickActionText}
+        style={
+          styles.quickActionText
+        }
       >
         {label}
       </Text>
@@ -2784,6 +2751,10 @@ function QuickAction({
 
 }
 
+
+/* =========================================================
+   STUDIO BUTTON
+========================================================= */
 
 function StudioButton({
   icon,
@@ -2796,20 +2767,20 @@ function StudioButton({
   return (
 
     <TouchableOpacity
-
       onPress={onPress}
-
       disabled={loading}
-
-      style={styles.studioButton}
-
+      style={
+        styles.studioButton
+      }
     >
 
       <View
-        style={styles.studioIcon}
+        style={
+          styles.studioIcon
+        }
       >
 
-        <Ionicons
+        <Icon
           name={icon}
           size={25}
           color="#FFFFFF"
@@ -2819,11 +2790,15 @@ function StudioButton({
 
 
       <View
-        style={{ flex: 1 }}
+        style={{
+          flex: 1,
+        }}
       >
 
         <Text
-          style={styles.studioButtonTitle}
+          style={
+            styles.studioButtonTitle
+          }
         >
           {title}
         </Text>
@@ -2842,15 +2817,19 @@ function StudioButton({
       {loading ? (
 
         <ActivityIndicator
-          color={COLORS.primary}
+          color={
+            COLORS.primary
+          }
         />
 
       ) : (
 
-        <Ionicons
-          name="chevron-forward"
-          size={22}
-          color={COLORS.textMuted}
+        <Icon
+          name="chevron"
+          size={27}
+          color={
+            COLORS.textMuted
+          }
         />
 
       )}
@@ -2862,6 +2841,10 @@ function StudioButton({
 }
 
 
+/* =========================================================
+   SETTINGS ROW
+========================================================= */
+
 function SettingRow({
   icon,
   title,
@@ -2871,28 +2854,38 @@ function SettingRow({
   return (
 
     <TouchableOpacity
-      style={styles.settingRow}
+      style={
+        styles.settingRow
+      }
     >
 
       <View
-        style={styles.settingIcon}
+        style={
+          styles.settingIcon
+        }
       >
 
-        <Ionicons
+        <Icon
           name={icon}
           size={22}
-          color={COLORS.primary}
+          color={
+            COLORS.primary
+          }
         />
 
       </View>
 
 
       <View
-        style={{ flex: 1 }}
+        style={{
+          flex: 1,
+        }}
       >
 
         <Text
-          style={styles.settingTitle}
+          style={
+            styles.settingTitle
+          }
         >
           {title}
         </Text>
@@ -2908,10 +2901,12 @@ function SettingRow({
       </View>
 
 
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={COLORS.textMuted}
+      <Icon
+        name="chevron"
+        size={22}
+        color={
+          COLORS.textMuted
+        }
       />
 
     </TouchableOpacity>
@@ -2920,6 +2915,10 @@ function SettingRow({
 
 }
 
+
+/* =========================================================
+   PROFILE OPTION
+========================================================= */
 
 function ProfileOption({
   icon,
@@ -2931,38 +2930,31 @@ function ProfileOption({
   return (
 
     <TouchableOpacity
-
       onPress={onPress}
-
-      style={styles.profileOption}
-
+      style={
+        styles.profileOption
+      }
     >
 
-      <Ionicons
-
+      <Icon
         name={icon}
-
         size={21}
-
         color={
           danger
             ? COLORS.danger
             : COLORS.text
         }
-
       />
 
       <Text
-
         style={[
           styles.profileOptionText,
 
           danger && {
-            color: COLORS.danger,
+            color:
+              COLORS.danger,
           },
-
         ]}
-
       >
         {label}
       </Text>
@@ -2991,8 +2983,10 @@ const styles =
       flex: 1,
       backgroundColor:
         COLORS.background,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
     },
 
     logoLarge: {
@@ -3001,17 +2995,16 @@ const styles =
       borderRadius: 30,
       backgroundColor:
         COLORS.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor:
-        COLORS.primary,
-      shadowOpacity: 0.7,
-      shadowRadius: 25,
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       elevation: 12,
     },
 
     loadingTitle: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 28,
       fontWeight: "900",
       letterSpacing: 3,
@@ -3036,7 +3029,8 @@ const styles =
     authScroll: {
       flexGrow: 1,
       padding: 25,
-      justifyContent: "center",
+      justifyContent:
+        "center",
     },
 
     authLogo: {
@@ -3045,23 +3039,29 @@ const styles =
       borderRadius: 27,
       backgroundColor:
         COLORS.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      alignSelf: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      alignSelf:
+        "center",
       marginBottom: 22,
     },
 
     authTitle: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 34,
       fontWeight: "900",
-      textAlign: "center",
+      textAlign:
+        "center",
     },
 
     authSubtitle: {
       color:
         COLORS.textSecondary,
-      textAlign: "center",
+      textAlign:
+        "center",
       fontSize: 15,
       lineHeight: 23,
       marginTop: 12,
@@ -3079,7 +3079,8 @@ const styles =
     },
 
     authCardTitle: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 24,
       fontWeight: "800",
     },
@@ -3094,7 +3095,8 @@ const styles =
     authInput: {
       backgroundColor:
         COLORS.surfaceLight,
-      color: COLORS.text,
+      color:
+        COLORS.text,
       paddingHorizontal: 17,
       height: 56,
       borderRadius: 16,
@@ -3110,20 +3112,25 @@ const styles =
         COLORS.primary,
       height: 56,
       borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       marginTop: 5,
     },
 
     authButtonText: {
-      color: "#FFFFFF",
+      color:
+        "#FFFFFF",
       fontSize: 16,
       fontWeight: "800",
     },
 
     switchAuth: {
-      flexDirection: "row",
-      justifyContent: "center",
+      flexDirection:
+        "row",
+      justifyContent:
+        "center",
       marginTop: 23,
     },
 
@@ -3133,8 +3140,10 @@ const styles =
     },
 
     switchAuthLink: {
-      color: COLORS.primary,
-      fontWeight: "800",
+      color:
+        COLORS.primary,
+      fontWeight:
+        "800",
     },
 
 
@@ -3142,8 +3151,10 @@ const styles =
 
     header: {
       height: 65,
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
       justifyContent:
         "space-between",
       paddingHorizontal: 16,
@@ -3155,13 +3166,17 @@ const styles =
     headerButton: {
       width: 42,
       height: 42,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
     },
 
     brand: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
     },
 
     brandIcon: {
@@ -3170,14 +3185,18 @@ const styles =
       borderRadius: 10,
       backgroundColor:
         COLORS.primary,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       marginRight: 9,
     },
 
     brandText: {
-      color: COLORS.text,
-      fontWeight: "900",
+      color:
+        COLORS.text,
+      fontWeight:
+        "900",
       fontSize: 18,
     },
 
@@ -3187,8 +3206,10 @@ const styles =
       borderRadius: 19,
       backgroundColor:
         COLORS.primaryDark,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
     },
 
 
@@ -3205,8 +3226,10 @@ const styles =
 
     welcomeContent: {
       flexGrow: 1,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       padding: 24,
     },
 
@@ -3216,38 +3239,48 @@ const styles =
       borderRadius: 26,
       backgroundColor:
         COLORS.primary,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       marginBottom: 22,
     },
 
     welcomeTitle: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 27,
-      fontWeight: "900",
-      textAlign: "center",
+      fontWeight:
+        "900",
+      textAlign:
+        "center",
     },
 
     welcomeSubtitle: {
       color:
         COLORS.textSecondary,
-      textAlign: "center",
+      textAlign:
+        "center",
       lineHeight: 22,
       marginTop: 12,
       maxWidth: 300,
     },
 
     modeGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
+      flexDirection:
+        "row",
+      flexWrap:
+        "wrap",
       justifyContent:
         "space-between",
       marginTop: 32,
-      width: "100%",
+      width:
+        "100%",
     },
 
     quickAction: {
-      width: "47%",
+      width:
+        "47%",
       height: 105,
       backgroundColor:
         COLORS.surface,
@@ -3255,14 +3288,18 @@ const styles =
       borderColor:
         COLORS.border,
       borderRadius: 22,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       marginBottom: 15,
     },
 
     quickActionText: {
-      color: COLORS.text,
-      fontWeight: "700",
+      color:
+        COLORS.text,
+      fontWeight:
+        "700",
       marginTop: 9,
     },
 
@@ -3294,20 +3331,24 @@ const styles =
       color:
         COLORS.textSecondary,
       fontSize: 13,
-      fontWeight: "700",
+      fontWeight:
+        "700",
     },
 
     modeButtonTextActive: {
-      color: "#FFFFFF",
+      color:
+        "#FFFFFF",
     },
 
 
     /* MESSAGE */
 
     messageRow: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
       marginBottom: 18,
-      alignItems: "flex-start",
+      alignItems:
+        "flex-start",
     },
 
     userRow: {
@@ -3326,14 +3367,17 @@ const styles =
       borderRadius: 11,
       backgroundColor:
         COLORS.primary,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       marginRight: 9,
       marginTop: 3,
     },
 
     messageBubble: {
-      maxWidth: "82%",
+      maxWidth:
+        "82%",
       padding: 14,
       borderRadius: 20,
     },
@@ -3354,13 +3398,15 @@ const styles =
     },
 
     messageText: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 15,
       lineHeight: 23,
     },
 
     messageActions: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
       marginTop: 12,
       paddingTop: 8,
       borderTopWidth: 1,
@@ -3369,8 +3415,10 @@ const styles =
     },
 
     typingContainer: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
       padding: 15,
     },
 
@@ -3384,8 +3432,10 @@ const styles =
     /* INPUT */
 
     inputArea: {
-      flexDirection: "row",
-      alignItems: "flex-end",
+      flexDirection:
+        "row",
+      alignItems:
+        "flex-end",
       padding: 10,
       margin: 12,
       backgroundColor:
@@ -3399,13 +3449,16 @@ const styles =
     attachButton: {
       width: 40,
       height: 45,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
     },
 
     chatInput: {
       flex: 1,
-      color: COLORS.text,
+      color:
+        COLORS.text,
       maxHeight: 120,
       paddingVertical: 12,
       fontSize: 15,
@@ -3417,8 +3470,10 @@ const styles =
       borderRadius: 21,
       backgroundColor:
         COLORS.primary,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
     },
 
     sendButtonDisabled: {
@@ -3434,9 +3489,11 @@ const styles =
     },
 
     studioTitle: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 29,
-      fontWeight: "900",
+      fontWeight:
+        "900",
     },
 
     studioSubtitle: {
@@ -3451,31 +3508,38 @@ const styles =
       minHeight: 130,
       backgroundColor:
         COLORS.surface,
-      color: COLORS.text,
+      color:
+        COLORS.text,
       padding: 18,
       borderRadius: 20,
       borderWidth: 1,
       borderColor:
         COLORS.border,
-      textAlignVertical: "top",
+      textAlignVertical:
+        "top",
       fontSize: 15,
     },
 
     selectedImageContainer: {
       marginTop: 15,
-      alignItems: "center",
+      alignItems:
+        "center",
     },
 
     selectedImage: {
-      width: "100%",
+      width:
+        "100%",
       height: 190,
       borderRadius: 18,
     },
 
     uploadImageButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       height: 55,
       borderRadius: 16,
       backgroundColor:
@@ -3487,14 +3551,18 @@ const styles =
     },
 
     uploadImageText: {
-      color: COLORS.text,
-      fontWeight: "700",
+      color:
+        COLORS.text,
+      fontWeight:
+        "700",
       marginLeft: 10,
     },
 
     studioButton: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
       backgroundColor:
         COLORS.surface,
       padding: 16,
@@ -3511,15 +3579,19 @@ const styles =
       borderRadius: 16,
       backgroundColor:
         COLORS.primary,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       marginRight: 14,
     },
 
     studioButtonTitle: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 16,
-      fontWeight: "800",
+      fontWeight:
+        "800",
     },
 
     studioButtonSubtitle: {
@@ -3538,15 +3610,19 @@ const styles =
     },
 
     settingsTitle: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 29,
-      fontWeight: "900",
+      fontWeight:
+        "900",
       marginBottom: 20,
     },
 
     settingRow: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
       backgroundColor:
         COLORS.surface,
       padding: 15,
@@ -3563,15 +3639,19 @@ const styles =
       borderRadius: 14,
       backgroundColor:
         COLORS.surfaceLight,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
       marginRight: 13,
     },
 
     settingTitle: {
-      color: COLORS.text,
+      color:
+        COLORS.text,
       fontSize: 15,
-      fontWeight: "800",
+      fontWeight:
+        "800",
     },
 
     settingSubtitle: {
@@ -3586,7 +3666,8 @@ const styles =
 
     bottomNav: {
       height: 68,
-      flexDirection: "row",
+      flexDirection:
+        "row",
       borderTopWidth: 1,
       borderTopColor:
         COLORS.border,
@@ -3596,8 +3677,10 @@ const styles =
 
     navButton: {
       flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
     },
 
     navLabel: {
@@ -3610,7 +3693,8 @@ const styles =
     navLabelActive: {
       color:
         COLORS.primary,
-      fontWeight: "800",
+      fontWeight:
+        "800",
     },
 
 
@@ -3623,93 +3707,132 @@ const styles =
     },
 
     sidebar: {
-      width: "84%",
-      maxWidth: 380,
-      height: "100%",
+      width:
+        "84%",
+      maxWidth:
+        380,
+      height:
+        "100%",
       backgroundColor:
         COLORS.surface,
-      paddingTop: 50,
-      paddingHorizontal: 17,
+      paddingTop:
+        50,
+      paddingHorizontal:
+        17,
     },
 
     sidebarHeader: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
       justifyContent:
         "space-between",
-      alignItems: "center",
-      marginBottom: 20,
+      alignItems:
+        "center",
+      marginBottom:
+        20,
     },
 
     sidebarTitle: {
-      color: COLORS.text,
-      fontSize: 22,
-      fontWeight: "900",
+      color:
+        COLORS.text,
+      fontSize:
+        22,
+      fontWeight:
+        "900",
     },
 
     newChatButton: {
-      height: 52,
-      borderRadius: 15,
+      height:
+        52,
+      borderRadius:
+        15,
       backgroundColor:
         COLORS.primary,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 15,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      marginBottom:
+        15,
     },
 
     newChatText: {
-      color: "#FFFFFF",
-      fontWeight: "800",
-      marginLeft: 7,
+      color:
+        "#FFFFFF",
+      fontWeight:
+        "800",
+      marginLeft:
+        7,
     },
 
     searchBox: {
-      flexDirection: "row",
-      alignItems: "center",
-      height: 48,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      height:
+        48,
       backgroundColor:
         COLORS.surfaceLight,
-      borderRadius: 14,
-      paddingHorizontal: 13,
-      marginBottom: 15,
+      borderRadius:
+        14,
+      paddingHorizontal:
+        13,
+      marginBottom:
+        15,
     },
 
     searchInput: {
       flex: 1,
-      color: COLORS.text,
-      marginLeft: 8,
+      color:
+        COLORS.text,
+      marginLeft:
+        8,
     },
 
     conversationItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 14,
-      borderBottomWidth: 1,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      paddingVertical:
+        14,
+      borderBottomWidth:
+        1,
       borderBottomColor:
         COLORS.border,
     },
 
     conversationTitle: {
-      color: COLORS.text,
-      fontSize: 14,
+      color:
+        COLORS.text,
+      fontSize:
+        14,
     },
 
     emptyHistory: {
-      alignItems: "center",
-      marginTop: 60,
+      alignItems:
+        "center",
+      marginTop:
+        60,
     },
 
     emptyHistoryText: {
       color:
         COLORS.textMuted,
-      marginTop: 12,
+      marginTop:
+        12,
     },
 
     sidebarFooter: {
-      borderTopWidth: 1,
+      borderTopWidth:
+        1,
       borderTopColor:
         COLORS.border,
-      paddingVertical: 18,
+      paddingVertical:
+        18,
     },
 
     sidebarEmail: {
@@ -3726,50 +3849,73 @@ const styles =
         "rgba(0,0,0,0.6)",
       justifyContent:
         "flex-start",
-      alignItems: "flex-end",
-      paddingTop: 70,
-      paddingRight: 15,
+      alignItems:
+        "flex-end",
+      paddingTop:
+        70,
+      paddingRight:
+        15,
     },
 
     profileMenu: {
-      width: 280,
+      width:
+        280,
       backgroundColor:
         COLORS.surface,
-      borderRadius: 22,
-      padding: 18,
-      borderWidth: 1,
+      borderRadius:
+        22,
+      padding:
+        18,
+      borderWidth:
+        1,
       borderColor:
         COLORS.border,
     },
 
     profileAvatarLarge: {
-      width: 55,
-      height: 55,
-      borderRadius: 20,
+      width:
+        55,
+      height:
+        55,
+      borderRadius:
+        20,
       backgroundColor:
         COLORS.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 12,
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      marginBottom:
+        12,
     },
 
     profileEmail: {
-      color: COLORS.text,
-      fontWeight: "700",
-      marginBottom: 16,
+      color:
+        COLORS.text,
+      fontWeight:
+        "700",
+      marginBottom:
+        16,
     },
 
     profileOption: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 14,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      paddingVertical:
+        14,
     },
 
     profileOptionText: {
-      color: COLORS.text,
-      marginLeft: 13,
-      fontSize: 15,
-      fontWeight: "600",
+      color:
+        COLORS.text,
+      marginLeft:
+        13,
+      fontSize:
+        15,
+      fontWeight:
+        "600",
     },
 
   });
