@@ -36,7 +36,10 @@ jobs:
       - name: Install Android packages
         run: |
           yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Install npm dependencies
         run: npm install
@@ -45,14 +48,13 @@ jobs:
         run: |
           echo "===== PROJECT ====="
           pwd
+
           echo "===== ANDROID ====="
           ls -la android
+
           echo "===== WRAPPER DIRECTORY ====="
           ls -la android/gradle/wrapper || true
 
-      # Install Gradle independently.
-      # This means the build does NOT require android/gradlew
-      # to exist before this point.
       - name: Install Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -68,6 +70,7 @@ jobs:
             --distribution-type bin
 
           echo "===== WRAPPER CREATED ====="
+
           ls -la
           ls -la gradle/wrapper
 
@@ -89,6 +92,35 @@ jobs:
         working-directory: android
         run: ./gradlew --version
 
+      - name: Generate Android debug keystore
+        run: |
+          echo "===== GENERATING DEBUG KEYSTORE ====="
+
+          mkdir -p android/app
+
+          keytool -genkeypair \
+            -v \
+            -keystore android/app/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+          echo "===== DEBUG KEYSTORE CREATED ====="
+
+          ls -lh android/app/debug.keystore
+
+      - name: Verify debug keystore
+        run: |
+          echo "===== VERIFYING DEBUG KEYSTORE ====="
+
+          test -f android/app/debug.keystore
+
+          echo "SUCCESS: debug.keystore exists."
+
       - name: Clean
         working-directory: android
         run: ./gradlew clean --no-daemon --stacktrace
@@ -99,15 +131,24 @@ jobs:
 
       - name: Show APK
         run: |
-          echo "===== APK ====="
+          echo "===== APK FILES ====="
+
           find android/app/build/outputs/apk \
             -type f \
             -name "*.apk" \
             -print
 
+      - name: Verify APK
+        run: |
+          echo "===== VERIFYING APK ====="
+
+          test -f android/app/build/outputs/apk/release/app-release.apk
+
+          echo "SUCCESS: Destiny AI APK was created."
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Destiny-AI-APK
-          path: android/app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
