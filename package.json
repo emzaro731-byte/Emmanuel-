@@ -1,19 +1,20 @@
-
 {
   "name": "destiny-ai",
   "version": "1.0.0",
-  "main": "node_modules/expo/AppEntry.js",
   "private": true,
+  "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "prebuild": "expo prebuild",
-    "build:android": "expo prebuild --platform android --non-interactive && cd android && ./gradlew assembleRelease",
-    "doctor": "npx expo-doctor"
+    "doctor": "expo-doctor",
+    "prebuild": "expo prebuild"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@supabase/supabase-js": "^2.57.0",
+    "base64-arraybuffer": "^1.0.2",
     "expo": "~54.0.0",
     "expo-asset": "~12.0.13",
     "expo-constants": "~18.0.14",
@@ -23,7 +24,8 @@
     "expo-keep-awake": "~15.0.8",
     "expo-speech": "~14.0.8",
     "react": "19.1.0",
-    "react-native": "0.81.0"
+    "react-native": "0.81.0",
+    "react-native-url-polyfill": "^2.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
