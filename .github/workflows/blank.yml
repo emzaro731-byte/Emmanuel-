@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-
     paths:
       - "package.json"
       - ".github/workflows/install-dependencies.yml"
@@ -21,67 +20,179 @@ jobs:
 
     steps:
 
-      # Download your GitHub repository
+      # ==========================================
+      # 1. CHECKOUT PROJECT
+      # ==========================================
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Install Node.js
+      # ==========================================
+      # 2. INSTALL NODE
+      # ==========================================
+      # No npm cache here because package-lock.json
+      # may not exist yet.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
 
-      # Show Node and npm versions
-      - name: Check versions
+      # ==========================================
+      # 3. CHECK NODE
+      # ==========================================
+      - name: Check Node and npm
         run: |
           node --version
           npm --version
 
-      # Install normal npm dependencies
-      - name: Install Supabase and React Native packages
+      # ==========================================
+      # 4. CREATE/UPDATE PACKAGE LOCK
+      # ==========================================
+      - name: Install existing project dependencies
         run: |
-          npm install \
-            @supabase/supabase-js \
-            @react-native-async-storage/async-storage \
-            react-native-url-polyfill \
-            @expo/vector-icons \
-            base64-arraybuffer
+          npm install
 
-      # Install Expo packages using Expo-compatible versions
-      - name: Install Expo packages
+      # ==========================================
+      # 5. INSTALL SUPABASE
+      # ==========================================
+      - name: Install Supabase
         run: |
-          npx expo install \
-            expo-image-picker \
-            expo-speech \
-            expo-file-system \
-            expo-clipboard
+          npm install @supabase/supabase-js
 
-      # Fix Expo SDK dependency versions automatically
-      - name: Fix Expo dependency versions
+      # ==========================================
+      # 6. INSTALL ASYNC STORAGE
+      # ==========================================
+      - name: Install AsyncStorage
         run: |
-          npx expo install --fix --npm
+          npm install @react-native-async-storage/async-storage
 
-      # Make sure package-lock.json exists and is updated
+      # ==========================================
+      # 7. INSTALL URL POLYFILL
+      # ==========================================
+      - name: Install URL Polyfill
+        run: |
+          npm install react-native-url-polyfill
+
+      # ==========================================
+      # 8. INSTALL VECTOR ICONS
+      # ==========================================
+      - name: Install Expo Vector Icons
+        run: |
+          npm install @expo/vector-icons
+
+      # ==========================================
+      # 9. INSTALL BASE64 ARRAYBUFFER
+      # ==========================================
+      - name: Install Base64 ArrayBuffer
+        run: |
+          npm install base64-arraybuffer
+
+      # ==========================================
+      # 10. INSTALL EXPO IMAGE PICKER
+      # ==========================================
+      - name: Install Expo Image Picker
+        run: |
+          npx expo install expo-image-picker
+
+      # ==========================================
+      # 11. INSTALL EXPO SPEECH
+      # ==========================================
+      - name: Install Expo Speech
+      run: |
+          npx expo install expo-speech
+
+      # ==========================================
+      # 12. INSTALL EXPO FILE SYSTEM
+      # ==========================================
+      - name: Install Expo File System
+        run: |
+          npx expo install expo-file-system
+
+      # ==========================================
+      # 13. INSTALL EXPO CLIPBOARD
+      # ==========================================
+      - name: Install Expo Clipboard
+        run: |
+          npx expo install expo-clipboard
+
+      # ==========================================
+      # 14. FIX EXPO DEPENDENCY VERSIONS
+      # ==========================================
+      - name: Fix Expo dependencies
+        run: |
+          npx expo install --fix
+
+      # ==========================================
+      # 15. REGENERATE LOCKFILE
+      # ==========================================
       - name: Generate package-lock.json
         run: |
-          npm install --package-lock-only
+          npm install
 
-      # Check the Expo project
+      # ==========================================
+      # 16. VERIFY LOCKFILE
+      # ==========================================
+      - name: Verify package-lock.json
+        run: |
+          test -f package-lock.json
+          echo "✅ package-lock.json exists"
+          ls -lh package-lock.json
+
+      # ==========================================
+      # 17. RUN EXPO DOCTOR
+      # ==========================================
       - name: Run Expo Doctor
         run: |
           npx expo-doctor
 
-      # Save updated package files back to GitHub
-      - name: Commit updated dependencies
+      # ==========================================
+      # 18. VERIFY IMPORTANT PACKAGES
+      # ==========================================
+      - name: Verify installed packages
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm list \
+            @supabase/supabase-js \
+            @react-native-async-storage/async-storage \
+            react-native-url-polyfill \
+            @expo/vector-icons \
+            expo-image-picker \
+            expo-speech \
+            expo-file-system \
+            expo-clipboard \
+            base64-arraybuffer \
+            --depth=0
+
+      # ==========================================
+      # 19. SHOW PACKAGE LOCK
+      # ==========================================
+      - name: Check package files
+        run: |
+          echo "======================================"
+          echo "DESTINY AI DEPENDENCIES"
+          echo "======================================"
+
+          echo ""
+          echo "package.json:"
+          test -f package.json
+          echo "✅ Found"
+
+          echo ""
+          echo "package-lock.json:"
+          test -f package-lock.json
+          echo "✅ Found"
+
+      # ==========================================
+      # 20. COMMIT CHANGES
+      # ==========================================
+      - name: Commit package files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add package.json package-lock.json
 
-          git diff --cached --quiet || git commit -m "Update Destiny AI dependencies automatically"
-
-          git push
+          if git diff --cached --quiet; then
+            echo "No dependency changes to commit."
+          else
+            git commit -m "Install Destiny AI dependencies"
+            git push
+          fi
