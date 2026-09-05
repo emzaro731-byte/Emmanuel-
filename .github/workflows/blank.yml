@@ -3,12 +3,6 @@ name: Build Destiny AI APK
 on:
   workflow_dispatch:
 
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "**.md"
-
 permissions:
   contents: read
 
@@ -19,40 +13,40 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
 
-      - name: Check Node and npm
-        run: |
-          node --version
-          npm --version
-
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
 
-      - name: Check Expo project
+      - name: Check EAS
         run: |
-          npx expo --version
           eas --version
 
-      - name: Verify eas.json
+      - name: Check Expo authentication
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          test -f eas.json
-          echo "✅ eas.json found"
-          cat eas.json
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "❌ EXPO_TOKEN is missing"
+            echo "Go to GitHub → Settings → Secrets and variables → Actions"
+            echo "and create a repository secret named EXPO_TOKEN."
+            exit 1
+          fi
 
-      - name: Build Android APK
+          echo "✅ EXPO_TOKEN is available"
+
+      - name: Build Destiny AI APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           eas build \
             --platform android \
