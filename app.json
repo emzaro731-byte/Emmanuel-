@@ -1,4 +1,19 @@
 {
-  "name": "DestinyAI",
-  "displayName": "Destiny AI"
+  "expo": {
+    "name": "Destiny AI",
+    "slug": "destiny-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.destinyai",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "RECORD_AUDIO",
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ]
+    }
+  }
 }
