@@ -54,14 +54,29 @@ jobs:
           from pathlib import Path
           p = Path('lib/screens/media_studio_page.dart')
           s = p.read_text(encoding='utf-8')
-          old = '''            ])),\n          ),\n        ])),\n      )]),\n    );'''
-          new = '''            ])),\n          ),\n        ]),\n      )]),\n    );'''
+          old = '''            ])),
+          ),
+        ])),
+      )]),
+    );'''
+          new = '''            ])),
+          ),
+        ]),
+      )]),
+    );'''
           if old in s:
               s = s.replace(old, new, 1)
           else:
               print('Media Studio tail already repaired or pattern not present.')
           p.write_text(s, encoding='utf-8')
           Path('test/widget_test.dart').unlink(missing_ok=True)
+
+          # The Supabase query result is already a typed List in the current SDK.
+          # Removing the redundant runtime type check eliminates the analyzer warning.
+          chat = Path('lib/screens/chat_page.dart')
+          cs = chat.read_text(encoding='utf-8')
+          cs = cs.replace('if (rows is List && rows.isNotEmpty) {', 'if (rows.isNotEmpty) {', 1)
+          chat.write_text(cs, encoding='utf-8')
           PY
 
       - name: Format Dart source
