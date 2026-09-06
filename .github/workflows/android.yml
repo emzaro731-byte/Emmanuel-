@@ -1,4 +1,4 @@
-name: Destiny AI Android APK
+name: Destiny AI APK Build
 
 on:
 push:
@@ -6,63 +6,61 @@ branches:
 - main
 workflow_dispatch:
 
-permissions:
-contents: read
-
 jobs:
 build:
+name: Android APK
 runs-on: ubuntu-latest
 
 steps:
-  - name: Checkout
+  - name: Checkout repository
     uses: actions/checkout@v4
 
-  - name: Java 17
+  - name: Set up Java 17
     uses: actions/setup-java@v4
     with:
       distribution: temurin
       java-version: "17"
 
-  - name: Node 20
+  - name: Set up Node 20
     uses: actions/setup-node@v4
     with:
       node-version: "20"
 
-  - name: Android SDK
+  - name: Install Android SDK
     uses: android-actions/setup-android@v3
 
-  - name: Install Android SDK packages
+  - name: Install Android packages
     run: |
       yes | sdkmanager --licenses || true
-      sdkmanager "platform-tools"
-      sdkmanager "platforms;android-35"
-      sdkmanager "build-tools;35.0.0"
+      sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-  - name: Install npm packages
+  - name: Install npm dependencies
     run: npm install
 
-  - name: Check project
+  - name: Check files
     run: |
-      echo "Checking Destiny AI project..."
+      echo "Checking project..."
       test -f package.json
       test -f App.tsx
       test -f index.js
       test -f app.json
       test -f lib/supabase.ts
       test -d android
-      echo "Project check passed."
+      echo "Project files OK."
 
-  - name: Gradle 8.13
+  - name: Set up Gradle
     uses: gradle/actions/setup-gradle@v4
     with:
       gradle-version: "8.13"
 
-  - name: Create Gradle wrapper
+  - name: Generate Gradle wrapper
     working-directory: android
     run: |
-      gradle wrapper --gradle-version 8.13 --distribution-type bin
+      gradle wrapper \
+        --gradle-version 8.13 \
+        --distribution-type bin
 
-  - name: Make Gradle executable
+  - name: Prepare Gradle
     run: chmod +x android/gradlew
 
   - name: Create debug keystore
@@ -80,17 +78,16 @@ steps:
         -validity 10000 \
         -dname "CN=Android Debug,O=Android,C=US"
 
-  - name: Clean
+  - name: Build APK
     working-directory: android
-    run: ./gradlew clean --no-daemon
-
-  - name: Build Release APK
-    working-directory: android
-    run: ./gradlew assembleRelease --no-daemon --stacktrace
-
-  - name: Check APK
     run: |
-      echo "APK files:"
+      ./gradlew assembleRelease \
+        --no-daemon \
+        --stacktrace
+
+  - name: Locate APK
+    run: |
+      echo "Generated APK:"
       find android/app/build/outputs/apk \
         -type f \
         -name "*.apk" \
