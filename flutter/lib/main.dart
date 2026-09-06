@@ -19,7 +19,10 @@ Future<void> main() async {
   };
 
   const url = String.fromEnvironment('SUPABASE_URL', defaultValue: defaultSupabaseUrl);
-  const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  const key = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+    defaultValue: 'sb_publishable_j8gV4-PeFte1RMgl759uQQ_KrM_3vzK',
+  );
 
   if (key.isEmpty) {
     runApp(const DestinyApp(configError: true, message: 'The Supabase publishable key was not supplied to this release build.'));
