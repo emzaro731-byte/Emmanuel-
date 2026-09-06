@@ -31,15 +31,12 @@ jobs:
           if [ ! -d android ]; then
             flutter create --platforms=android --org com.destinyai --project-name destinyai .
           fi
-
           if [ -f android/app/build.gradle.kts ]; then
             sed -i 's/applicationId = "[^"]*"/applicationId = "com.destinyai"/' android/app/build.gradle.kts
           fi
-
           if [ -f android/app/build.gradle ]; then
             sed -i 's/applicationId "[^"]*"/applicationId "com.destinyai"/' android/app/build.gradle
           fi
-
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ] && ! grep -q 'android.permission.INTERNET' "$MANIFEST"; then
             sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' "$MANIFEST"
@@ -57,8 +54,8 @@ jobs:
           main = Path('lib/main.dart')
           source = main.read_text(encoding='utf-8')
 
-          # main.dart previously contained an older copy of ChatPage. Remove it completely
-          # and use the standalone premium implementation in screens/chat_page.dart.
+          # Remove the legacy embedded ChatPage. The standalone Liquid Glass ChatPage
+          # lives in screens/chat_page.dart.
           source, removed = re.subn(
               r'class ChatPage extends StatefulWidget\s*\{.*?\nclass ProfilePage extends StatefulWidget\s*\{',
               'class ProfilePage extends StatefulWidget {',
@@ -67,7 +64,7 @@ jobs:
               flags=re.S,
           )
           if removed != 1:
-              raise SystemExit('Could not remove the legacy embedded ChatPage from main.dart')
+              raise SystemExit('Could not remove legacy embedded ChatPage')
 
           if "import 'screens/chat_page.dart';" not in source:
               source = source.replace(
@@ -85,48 +82,103 @@ jobs:
           source = source.replace("import 'dart:convert';\n", '')
           source = source.replace("import 'package:image_picker/image_picker.dart';\n", '')
 
-          # ConfigScreen: Scaffold -> Center -> Padding -> Column.
-          source = source.replace(
-              "        ])),\n      );\n}\n\nclass AuthGate",
-              "        ]))),\n      );\n}\n\nclass AuthGate",
-              1,
-          )
+          # Replace the entire LoginScreen build method with a known-valid nesting.
+          login_start = source.find('  @override\n  Widget build(BuildContext context) => Scaffold(', source.find('class _LoginState'))
+          login_end = source.find('\n}\n\nclass HomeScreen', login_start)
+          if login_start < 0 or login_end < 0:
+              raise SystemExit('Could not locate LoginScreen build method')
+          login_build = '''  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 72, color: gold),
+                    const SizedBox(height: 14),
+                    const Text('Destiny AI', textAlign: TextAlign.center, style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    const Text('Your intelligent AI assistant', textAlign: TextAlign.center, style: TextStyle(color: muted)),
+                    const SizedBox(height: 36),
+                    TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined))),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: password,
+                      obscureText: obscure,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(onPressed: () => setState(() => obscure = !obscure), icon: Icon(obscure ? Icons.visibility : Icons.visibility_off)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: busy ? null : submit,
+                      child: Padding(padding: const EdgeInsets.all(13), child: Text(busy ? 'Please wait...' : (register ? 'Create account' : 'Sign in'))),
+                    ),
+                    TextButton(onPressed: busy ? null : () => setState(() => register = !register), child: Text(register ? 'Already have an account? Sign in' : 'New to Destiny AI? Create an account')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+'''
+          source = source[:login_start] + login_build + source[login_end:]
 
-          # LoginScreen: Scaffold -> SafeArea -> Center -> ScrollView -> ConstrainedBox -> Column.
-          login_pattern = re.compile(
-              r"(class _LoginState extends State<LoginScreen>.*?@override\s+Widget build\(BuildContext context\) => Scaffold\(.*?children: \[.*?)(\n        \]\)+,\n      \);\n}\n\nclass HomeScreen)",
-              re.S,
-          )
-          match = login_pattern.search(source)
-          if not match:
-              raise SystemExit('Could not locate LoginScreen build block')
-          login_block = match.group(1) + "\n        ])))),),\n      );\n}\n\nclass HomeScreen"
-          login_block = login_block.replace(" ])))),),", " ]))))),")
-          source = source[:match.start()] + login_block + source[match.end():]
+          # Repair ConfigScreen using a fully explicit valid tree.
+          config_start = source.find('  Widget build(BuildContext context) => Scaffold(', source.find('class ConfigScreen'))
+          config_end = source.find('\n}\n\nclass AuthGate', config_start)
+          if config_start < 0 or config_end < 0:
+              raise SystemExit('Could not locate ConfigScreen build method')
+          config_build = '''  Widget build(BuildContext context) => Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.auto_awesome, size: 72, color: gold),
+                const SizedBox(height: 18),
+                const Text('Destiny AI', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 12),
+                Text(message ?? 'Destiny AI could not initialize.', textAlign: TextAlign.center, style: const TextStyle(color: muted, height: 1.45)),
+              ],
+            ),
+          ),
+        ),
+      );
+'''
+          source = source[:config_start] + config_build + source[config_end:]
           main.write_text(source, encoding='utf-8')
 
-          # Media Studio: the privacy Row needs one extra ')' to close Row + GlassContainer.
+          # Media Studio has a valid tree ending with:
+          # SliverList -> SliverPadding -> slivers list -> CustomScrollView -> SafeArea -> Stack.
           media = Path('lib/screens/media_studio_page.dart')
           media_source = media.read_text(encoding='utf-8')
-          anchor = "Provider credentials stay server-side and are never shipped inside the APK."
-          pos = media_source.find(anchor)
-          if pos < 0:
-              raise SystemExit('Could not locate Media Studio privacy card')
-          tail = media_source[pos:]
-          old = "\n              ])),\n            ])),"
-          new = "\n              ]))),\n            ])),"
-          if old in tail:
-              tail = tail.replace(old, new, 1)
-              media.write_text(media_source[:pos] + tail, encoding='utf-8')
-              print('Repaired Media Studio privacy Row closing delimiter.')
-          else:
-              print('Media Studio privacy Row already repaired.')
+          old_tail = '''            ])),
+          ),
+        ])),
+      )]),
+    );'''
+          new_tail = '''            ])),
+          ),
+        ]),
+      )]),
+    );'''
+          if old_tail not in media_source:
+              raise SystemExit('Could not locate Media Studio build ending')
+          media.write_text(media_source.replace(old_tail, new_tail, 1), encoding='utf-8')
 
-          # Remove stale generated test that references package:destinyai/MyApp.
+          # Remove stale generated test that references the old app class.
           test_file = Path('test/widget_test.dart')
           if test_file.exists():
               test_file.unlink()
-              print('Removed stale generated widget test.')
 
           print('Flutter source repair completed successfully.')
           PY
