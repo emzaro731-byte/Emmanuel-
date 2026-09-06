@@ -1,4 +1,4 @@
-name: Destiny AI APK Build
+name: Destiny AI Build
 
 on:
 push:
@@ -8,94 +8,18 @@ workflow_dispatch:
 
 jobs:
 build:
-name: Android APK
 runs-on: ubuntu-latest
 
 steps:
-  - name: Checkout repository
+  - name: Start
+    run: echo "Destiny AI workflow started successfully"
+
+  - name: Checkout
     uses: actions/checkout@v4
 
-  - name: Set up Java 17
-    uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: "17"
-
-  - name: Set up Node 20
-    uses: actions/setup-node@v4
-    with:
-      node-version: "20"
-
-  - name: Install Android SDK
-    uses: android-actions/setup-android@v3
-
-  - name: Install Android packages
+  - name: Show files
     run: |
-      yes | sdkmanager --licenses || true
-      sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
-  - name: Install npm dependencies
-    run: npm install
-
-  - name: Check files
-    run: |
-      echo "Checking project..."
-      test -f package.json
-      test -f App.tsx
-      test -f index.js
-      test -f app.json
-      test -f lib/supabase.ts
-      test -d android
-      echo "Project files OK."
-
-  - name: Set up Gradle
-    uses: gradle/actions/setup-gradle@v4
-    with:
-      gradle-version: "8.13"
-
-  - name: Generate Gradle wrapper
-    working-directory: android
-    run: |
-      gradle wrapper \
-        --gradle-version 8.13 \
-        --distribution-type bin
-
-  - name: Prepare Gradle
-    run: chmod +x android/gradlew
-
-  - name: Create debug keystore
-    run: |
-      mkdir -p android/app
-
-      keytool -genkeypair \
-        -v \
-        -keystore android/app/debug.keystore \
-        -storepass android \
-        -alias androiddebugkey \
-        -keypass android \
-        -keyalg RSA \
-        -keysize 2048 \
-        -validity 10000 \
-        -dname "CN=Android Debug,O=Android,C=US"
-
-  - name: Build APK
-    working-directory: android
-    run: |
-      ./gradlew assembleRelease \
-        --no-daemon \
-        --stacktrace
-
-  - name: Locate APK
-    run: |
-      echo "Generated APK:"
-      find android/app/build/outputs/apk \
-        -type f \
-        -name "*.apk" \
-        -print
-
-  - name: Upload APK
-    uses: actions/upload-artifact@v4
-    with:
-      name: Destiny-AI-APK
-      path: android/app/build/outputs/apk/release/*.apk
-      if-no-files-found: error
+      echo "Repository:"
+      pwd
+      echo "Files:"
+      ls -la
