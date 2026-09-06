@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -12,19 +13,34 @@ const card = Color(0xFF10172B);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+
   const url = String.fromEnvironment('SUPABASE_URL', defaultValue: defaultSupabaseUrl);
   const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+
   if (key.isEmpty) {
-    runApp(const DestinyApp(configError: true));
+    runApp(const DestinyApp(configError: true, message: 'The Supabase publishable key was not supplied to this release build.'));
     return;
   }
-  await Supabase.initialize(url: url, publishableKey: key);
-  runApp(const DestinyApp());
+
+  try {
+    await Supabase.initialize(url: url, publishableKey: key);
+    runApp(const DestinyApp());
+  } catch (error, stackTrace) {
+    debugPrint('Destiny AI startup initialization failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+    runApp(DestinyApp(configError: true, message: 'Destiny AI could not initialize its secure backend.\n\n$error'));
+  }
 }
 
 class DestinyApp extends StatelessWidget {
   final bool configError;
-  const DestinyApp({super.key, this.configError = false});
+  final String? message;
+  const DestinyApp({super.key, this.configError = false, this.message});
+
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -38,18 +54,33 @@ class DestinyApp extends StatelessWidget {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
           ),
         ),
-        home: configError ? const ConfigScreen() : const AuthGate(),
+        home: configError ? ConfigScreen(message: message) : const AuthGate(),
       );
 }
 
 class ConfigScreen extends StatelessWidget {
-  const ConfigScreen({super.key});
+  final String? message;
+  const ConfigScreen({super.key, this.message});
+
   @override
-  Widget build(BuildContext context) => const Scaffold(
+  Widget build(BuildContext context) => Scaffold(
         body: Center(
           child: Padding(
-            padding: EdgeInsets.all(28),
-            child: Text('Destiny AI needs its Supabase publishable key. The GitHub Actions build supplies it securely.', textAlign: TextAlign.center),
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.auto_awesome, size: 72, color: gold),
+                const SizedBox(height: 18),
+                const Text('Destiny AI', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 12),
+                Text(
+                  message ?? 'Destiny AI could not initialize.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Color(0xFFB9C2D8), height: 1.45),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -57,6 +88,7 @@ class ConfigScreen extends StatelessWidget {
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
+
   @override
   Widget build(BuildContext context) => StreamBuilder<AuthState>(
         stream: Supabase.instance.client.auth.onAuthStateChange,
@@ -144,6 +176,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeState extends State<HomeScreen> {
   int index = 0;
   final pages = const [ChatPage(), ProfilePage(), SettingsPage()];
+
   @override
   Widget build(BuildContext context) => Scaffold(
         body: pages[index],
@@ -181,23 +214,33 @@ class _ChatState extends State<ChatPage> {
   }
 
   Future<void> _loadHistory() async {
-    final p = await SharedPreferences.getInstance();
-    final raw = p.getString('destiny_chat_history');
-    if (raw == null) return;
     try {
+      final p = await SharedPreferences.getInstance();
+      final raw = p.getString('destiny_chat_history');
+      if (raw == null) return;
       final list = (jsonDecode(raw) as List).map((x) => Map<String, String>.from(x as Map)).toList();
       if (mounted) setState(() => messages.addAll(list));
-    } catch (_) {}
+    } catch (error) {
+      debugPrint('History load failed: $error');
+    }
   }
 
   Future<void> _saveHistory() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString('destiny_chat_history', jsonEncode(messages.takeLast(80).toList()));
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString('destiny_chat_history', jsonEncode(messages.takeLast(80).toList()));
+    } catch (error) {
+      debugPrint('History save failed: $error');
+    }
   }
 
   Future<void> chooseImage() async {
-    final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80, maxWidth: 1800);
-    if (x != null && mounted) setState(() => attachment = x);
+    try {
+      final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80, maxWidth: 1800);
+      if (x != null && mounted) setState(() => attachment = x);
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not select image: $error')));
+    }
   }
 
   Future<void> send() async {
