@@ -1,154 +1,116 @@
 name: Destiny AI Android Build
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+workflow_dispatch:
+
+push:
+branches:
+- main
 
 permissions:
-  contents: read
+contents: read
 
 jobs:
-  build:
-    name: Build Destiny AI APK
-    runs-on: ubuntu-latest
+build:
+name: Build Destiny AI APK
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+steps:
 
-      - name: Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+  - name: Checkout repository
+    uses: actions/checkout@v4
 
-      - name: Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
+  - name: Setup Java 17
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: "17"
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
+  - name: Setup Node.js 20
+    uses: actions/setup-node@v4
+    with:
+      node-version: "20"
+      cache: npm
 
-      - name: Install Android packages
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+  - name: Install npm dependencies
+    run: npm install
 
-      - name: Install npm dependencies
-        run: npm install
+  - name: Check project files
+    run: |
+      echo "===== PROJECT FILES ====="
+      ls -la
 
-      - name: Verify project
-        run: |
-          echo "===== PROJECT ====="
-          pwd
+      echo "===== APP FILE ====="
+      test -f App.tsx
 
-          echo "===== ANDROID ====="
-          ls -la android
+      echo "===== ENTRY FILE ====="
+      test -f index.js
 
-          echo "===== WRAPPER DIRECTORY ====="
-          ls -la android/gradle/wrapper || true
+      echo "===== APP CONFIG ====="
+      test -f app.json
 
-      - name: Install Gradle 8.13
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.13"
+      echo "===== SUPABASE FILE ====="
+      test -f lib/supabase.ts
 
-      - name: Generate Gradle wrapper
-        working-directory: android
-        run: |
-          echo "===== GENERATING GRADLE WRAPPER ====="
+      echo "SUCCESS: Required files found."
 
-          gradle wrapper \
-            --gradle-version 8.13 \
-            --distribution-type bin
+  - name: TypeScript check
+    run: npx tsc --noEmit
 
-          echo "===== WRAPPER CREATED ====="
+  - name: Setup Android SDK
+    uses: android-actions/setup-android@v3
 
-          ls -la
-          ls -la gradle/wrapper
+  - name: Install Android SDK packages
+    run: |
+      yes | sdkmanager --licenses || true
 
-      - name: Verify Gradle wrapper
-        run: |
-          echo "===== VERIFYING WRAPPER ====="
+      sdkmanager \
+        "platform-tools" \
+        "platforms;android-35" \
+        "build-tools;35.0.0"
 
-          test -f android/gradlew
-          test -f android/gradlew.bat
-          test -f android/gradle/wrapper/gradle-wrapper.jar
-          test -f android/gradle/wrapper/gradle-wrapper.properties
+  - name: Check Android project
+    run: |
+      echo "===== ANDROID DIRECTORY ====="
+      ls -la android
 
-          echo "SUCCESS: All Gradle wrapper files exist."
+      echo "===== GRADLE WRAPPER ====="
+      ls -la android/gradle/wrapper || true
 
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+  - name: Make Gradle executable
+    run: |
+      chmod +x android/gradlew
 
-      - name: Check Gradle
-        working-directory: android
-        run: ./gradlew --version
+  - name: Check Gradle
+    working-directory: android
+    run: |
+      ./gradlew --version
 
-      - name: Generate Android debug keystore
-        run: |
-          echo "===== GENERATING DEBUG KEYSTORE ====="
+  - name: Clean Android project
+    working-directory: android
+    run: |
+      ./gradlew clean --no-daemon --stacktrace
 
-          mkdir -p android/app
+  - name: Build Release APK
+    working-directory: android
+    run: |
+      ./gradlew assembleRelease \
+        --no-daemon \
+        --stacktrace
 
-          keytool -genkeypair \
-            -v \
-            -keystore android/app/debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+  - name: Find APK
+    run: |
+      echo "===== GENERATED APK ====="
 
-          echo "===== DEBUG KEYSTORE CREATED ====="
+      find android/app/build/outputs/apk \
+        -type f \
+        -name "*.apk" \
+        -print
 
-          ls -lh android/app/debug.keystore
-
-      - name: Verify debug keystore
-        run: |
-          echo "===== VERIFYING DEBUG KEYSTORE ====="
-
-          test -f android/app/debug.keystore
-
-          echo "SUCCESS: debug.keystore exists."
-
-      - name: Clean
-        working-directory: android
-        run: ./gradlew clean --no-daemon --stacktrace
-
-      - name: Build Release APK
-        working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
-
-      - name: Show APK
-        run: |
-          echo "===== APK FILES ====="
-
-          find android/app/build/outputs/apk \
-            -type f \
-            -name "*.apk" \
-            -print
-
-      - name: Verify APK
-        run: |
-          echo "===== VERIFYING APK ====="
-
-          test -f android/app/build/outputs/apk/release/app-release.apk
-
-          echo "SUCCESS: Destiny AI APK was created."
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Destiny-AI-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
+  - name: Upload Destiny AI APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: Destiny-AI-APK
+      path: android/app/build/outputs/apk/release/*.apk
+      if-no-files-found: error
+      retention-days: 30
