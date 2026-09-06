@@ -60,9 +60,7 @@ jobs:
         run: |
           flutter clean
           flutter pub get
-          flutter build apk --release \
-            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="${{ secrets.SUPABASE_PUBLISHABLE_KEY }}"
+          flutter build apk --release
 
       - name: Verify APK
         run: |
