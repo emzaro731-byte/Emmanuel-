@@ -1,7 +1,8 @@
 import React from "react";
 import { AppRegistry, StyleSheet, Text, View } from "react-native";
 import App from "./App";
-import { name as appName } from "./app.json";
+
+const APP_NAME = "DestinyAI";
 
 class AppErrorBoundary extends React.Component {
   state = { error: null };
@@ -57,7 +58,7 @@ const styles = StyleSheet.create({
   },
 });
 
-AppRegistry.registerComponent(appName, () => () => (
+AppRegistry.registerComponent(APP_NAME, () => () => (
   <AppErrorBoundary>
     <App />
   </AppErrorBoundary>
