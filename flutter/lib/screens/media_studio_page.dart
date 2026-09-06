@@ -165,7 +165,7 @@ class _MediaStudioPageState extends State<MediaStudioPage> {
             ])),
           ),
         ])),
-      )]),
+      ]),
     );
   }
 }
@@ -226,5 +226,13 @@ class _ResultGlass extends StatelessWidget {
   final String title; final String? mediaType; final VoidCallback onOpen;
   const _ResultGlass({required this.title, required this.mediaType, required this.onOpen});
   @override
-  Widget build(BuildContext context) => _GlassContainer(padding: const EdgeInsets.all(20), child: Column(children: [Container(width: 76, height: 76, decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [studioGold.withValues(alpha: .25), studioPurple.withValues(alpha: .28)]), border: Border.all(color: Colors.white.withValues(alpha: .10))), child: Icon(mediaType == 'image' ? Icons.image_rounded : mediaType == 'video' ? Icons.movie_rounded : Icons.audiotrack_rounded, size: 34, color: studioGold)), const SizedBox(height: 13), Text('$title generated successfully', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: studioText)), const SizedBox(height: 6), const Text('Your creation is ready to preview.', textAlign: TextAlign.center, style: TextStyle(color: studioMuted)), const SizedBox(height: 15), SizedBox(width: double.infinity, height: 50, child: FilledButton.icon(onPressed: onOpen, style: FilledButton.styleFrom(backgroundColor: studioGold, foregroundColor: studioBg, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))), icon: Icon(mediaType == 'music' ? Icons.play_arrow_rounded : Icons.open_in_new_rounded), label: Text(mediaType == 'music' ? 'Play music' : 'Open $title', style: const TextStyle(fontWeight: FontWeight.w800))))]));
+  Widget build(BuildContext context) => _GlassContainer(padding: const EdgeInsets.all(20), child: Column(children: [
+    Icon(mediaType == 'video' ? Icons.movie_creation_rounded : mediaType == 'music' ? Icons.music_note_rounded : Icons.image_rounded, color: studioPink, size: 46),
+    const SizedBox(height: 10),
+    Text('$title created successfully', style: const TextStyle(color: studioText, fontWeight: FontWeight.w800, fontSize: 17)),
+    const SizedBox(height: 5),
+    const Text('Your generated media is ready to view.', style: TextStyle(color: studioMuted)),
+    const SizedBox(height: 14),
+    SizedBox(width: double.infinity, height: 50, child: FilledButton.icon(onPressed: onOpen, icon: const Icon(Icons.open_in_new_rounded), label: const Text('Open generated media'))),
+  ]));
 }
