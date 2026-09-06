@@ -2,7 +2,6 @@ name: Destiny AI Android Build
 
 on:
 workflow_dispatch:
-
 push:
 branches:
 - main
@@ -16,8 +15,7 @@ name: Build Destiny AI APK
 runs-on: ubuntu-latest
 
 steps:
-
-  - name: Checkout repository
+  - name: Checkout
     uses: actions/checkout@v4
 
   - name: Setup Java 17
@@ -26,88 +24,110 @@ steps:
       distribution: temurin
       java-version: "17"
 
-  - name: Setup Node.js 20
+  - name: Setup Node 20
     uses: actions/setup-node@v4
     with:
       node-version: "20"
       cache: npm
 
+  - name: Setup Android
+    uses: android-actions/setup-android@v3
+
+  - name: Install Android SDK
+    run: |
+      yes | sdkmanager --licenses || true
+      sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
   - name: Install npm dependencies
     run: npm install
 
-  - name: Check project files
+  - name: Verify project
     run: |
-      echo "===== PROJECT FILES ====="
+      echo "===== PROJECT ====="
+      pwd
       ls -la
 
-      echo "===== APP FILE ====="
+      echo "===== REQUIRED FILES ====="
       test -f App.tsx
-
-      echo "===== ENTRY FILE ====="
       test -f index.js
-
-      echo "===== APP CONFIG ====="
       test -f app.json
-
-      echo "===== SUPABASE FILE ====="
+      test -f package.json
       test -f lib/supabase.ts
 
-      echo "SUCCESS: Required files found."
+      echo "All required files found."
+
+  - name: Install Gradle 8.13
+    uses: gradle/actions/setup-gradle@v4
+    with:
+      gradle-version: "8.13"
+
+  - name: Generate Gradle wrapper
+    working-directory: android
+    run: |
+      gradle wrapper \
+        --gradle-version 8.13 \
+        --distribution-type bin
+
+      echo "===== WRAPPER ====="
+      ls -la
+      ls -la gradle/wrapper
+
+  - name: Verify Gradle wrapper
+    run: |
+      test -f android/gradlew
+      test -f android/gradlew.bat
+      test -f android/gradle/wrapper/gradle-wrapper.jar
+      test -f android/gradle/wrapper/gradle-wrapper.properties
+
+      echo "Gradle wrapper verified."
+
+  - name: Make Gradle executable
+    run: chmod +x android/gradlew
 
   - name: TypeScript check
     run: npx tsc --noEmit
 
-  - name: Setup Android SDK
-    uses: android-actions/setup-android@v3
-
-  - name: Install Android SDK packages
+  - name: Generate debug keystore
     run: |
-      yes | sdkmanager --licenses || true
+      mkdir -p android/app
 
-      sdkmanager \
-        "platform-tools" \
-        "platforms;android-35" \
-        "build-tools;35.0.0"
+      keytool -genkeypair \
+        -v \
+        -keystore android/app/debug.keystore \
+        -storepass android \
+        -alias androiddebugkey \
+        -keypass android \
+        -keyalg RSA \
+        -keysize 2048 \
+        -validity 10000 \
+        -dname "CN=Android Debug,O=Android,C=US"
 
-  - name: Check Android project
+  - name: Verify debug keystore
     run: |
-      echo "===== ANDROID DIRECTORY ====="
-      ls -la android
-
-      echo "===== GRADLE WRAPPER ====="
-      ls -la android/gradle/wrapper || true
-
-  - name: Make Gradle executable
-    run: |
-      chmod +x android/gradlew
+      test -f android/app/debug.keystore
+      echo "Debug keystore created."
 
   - name: Check Gradle
     working-directory: android
-    run: |
-      ./gradlew --version
+    run: ./gradlew --version
 
-  - name: Clean Android project
+  - name: Clean
     working-directory: android
-    run: |
-      ./gradlew clean --no-daemon --stacktrace
+    run: ./gradlew clean --no-daemon --stacktrace
 
   - name: Build Release APK
     working-directory: android
-    run: |
-      ./gradlew assembleRelease \
-        --no-daemon \
-        --stacktrace
+    run: ./gradlew assembleRelease --no-daemon --stacktrace
 
   - name: Find APK
     run: |
-      echo "===== GENERATED APK ====="
-
+      echo "===== APK FILES ====="
       find android/app/build/outputs/apk \
         -type f \
         -name "*.apk" \
         -print
 
-  - name: Upload Destiny AI APK
+  - name: Upload APK
     uses: actions/upload-artifact@v4
     with:
       name: Destiny-AI-APK
