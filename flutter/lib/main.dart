@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'screens/media_studio_page.dart';
+
 const defaultSupabaseUrl = 'https://vihbsfrwnslnmheowkhy.supabase.co';
 const gold = Color(0xFFD8B15A);
 const navy = Color(0xFF050816);
@@ -77,11 +79,7 @@ class ConfigScreen extends StatelessWidget {
                 const SizedBox(height: 18),
                 const Text('Destiny AI', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 12),
-                Text(
-                  message ?? 'Destiny AI could not initialize.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFB9C2D8), height: 1.45),
-                ),
+                Text(message ?? 'Destiny AI could not initialize.', textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFB9C2D8), height: 1.45)),
               ],
             ),
           ),
@@ -178,7 +176,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeState extends State<HomeScreen> {
   int index = 0;
-  final pages = const [ChatPage(), ProfilePage(), SettingsPage()];
+  final pages = const [ChatPage(), MediaStudioPage(), ProfilePage(), SettingsPage()];
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -188,6 +186,7 @@ class _HomeState extends State<HomeScreen> {
           onDestinationSelected: (i) => setState(() => index = i),
           destinations: const [
             NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
+            NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'Create'),
             NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
             NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
           ],
@@ -218,22 +217,51 @@ class _ChatState extends State<ChatPage> {
 
   Future<void> _loadHistory() async {
     try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final rows = await Supabase.instance.client
+            .from('destiny_chat_messages')
+            .select('role, content, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', ascending: true)
+            .limit(80);
+        if (rows is List && rows.isNotEmpty) {
+          final cloud = rows.map<Map<String, String>>((row) => {
+                'role': (row['role'] ?? 'assistant').toString(),
+                'text': (row['content'] ?? '').toString(),
+              }).where((m) => (m['text'] ?? '').isNotEmpty).toList();
+          if (mounted) setState(() => messages.addAll(cloud));
+          return;
+        }
+      }
+
       final p = await SharedPreferences.getInstance();
       final raw = p.getString('destiny_chat_history');
-      if (raw == null) return;
-      final list = (jsonDecode(raw) as List).map((x) => Map<String, String>.from(x as Map)).toList();
-      if (mounted) setState(() => messages.addAll(list));
+      if (raw != null) {
+        final list = (jsonDecode(raw) as List).map((x) => Map<String, String>.from(x as Map)).toList();
+        if (mounted) setState(() => messages.addAll(list));
+      }
     } catch (error) {
       debugPrint('History load failed: $error');
     }
   }
 
-  Future<void> _saveHistory() async {
+  Future<void> _saveLocalHistory() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString('destiny_chat_history', jsonEncode(messages.takeLast(80).toList()));
+  }
+
+  Future<void> _saveCloudMessage(String role, String content) async {
     try {
-      final p = await SharedPreferences.getInstance();
-      await p.setString('destiny_chat_history', jsonEncode(messages.takeLast(80).toList()));
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null || content.trim().isEmpty) return;
+      await Supabase.instance.client.from('destiny_chat_messages').insert({
+        'user_id': user.id,
+        'role': role,
+        'content': content.trim(),
+      });
     } catch (error) {
-      debugPrint('History save failed: $error');
+      debugPrint('Cloud history save failed: $error');
     }
   }
 
@@ -256,6 +284,7 @@ class _ChatState extends State<ChatPage> {
       busy = true;
       attachment = null;
     });
+    await _saveCloudMessage('user', prompt);
     try {
       final session = Supabase.instance.client.auth.currentSession;
       if (session == null) throw Exception('Please sign in again.');
@@ -267,9 +296,13 @@ class _ChatState extends State<ChatPage> {
       if (r.status >= 400 || data['error'] != null) throw Exception(data['error'] ?? 'AI request failed (${r.status}).');
       final answer = (data['response'] ?? data['answer'] ?? data['message'] ?? 'No response returned.').toString();
       setState(() => messages.add({'role': 'assistant', 'text': answer}));
-      await _saveHistory();
+      await _saveCloudMessage('assistant', answer);
+      await _saveLocalHistory();
     } catch (e) {
-      setState(() => messages.add({'role': 'assistant', 'text': 'Error: $e'}));
+      final errorText = 'Error: $e';
+      setState(() => messages.add({'role': 'assistant', 'text': errorText}));
+      await _saveCloudMessage('assistant', errorText);
+      await _saveLocalHistory();
     } finally {
       if (mounted) setState(() => busy = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -282,6 +315,14 @@ class _ChatState extends State<ChatPage> {
     setState(() => messages.clear());
     final p = await SharedPreferences.getInstance();
     await p.remove('destiny_chat_history');
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await Supabase.instance.client.from('destiny_chat_messages').delete().eq('user_id', user.id);
+      }
+    } catch (error) {
+      debugPrint('Cloud history clear failed: $error');
+    }
   }
 
   @override
@@ -292,13 +333,19 @@ class _ChatState extends State<ChatPage> {
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
               child: Row(children: [
                 const Expanded(child: Text('Destiny AI', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900))),
-                PopupMenuButton<String>(onSelected: (v) { if (v == 'clear') clearChat(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'clear', child: Text('Clear chat'))], icon: const Icon(Icons.more_vert)),
+                PopupMenuButton<String>(
+                  onSelected: (v) { if (v == 'clear') clearChat(); },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'clear', child: Text('Clear chat history')),
+                  ],
+                  icon: const Icon(Icons.more_vert),
+                ),
                 DropdownButton<String>(value: mode, items: ['Chat', 'Code', 'Study', 'Write', 'Creative'].map((x) => DropdownMenuItem(value: x, child: Text(x))).toList(), onChanged: (x) { if (x != null) setState(() => mode = x); }),
               ]),
             ),
             Expanded(
               child: messages.isEmpty
-                  ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.auto_awesome, size: 56, color: gold), SizedBox(height: 12), Text('How can I help you today?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)), SizedBox(height: 6), Text('Ask anything or choose a mode above.', style: TextStyle(color: Color(0xFF9BA5C0)))]))
+                  ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.auto_awesome, size: 56, color: gold), SizedBox(height: 12), Text('How can I help you today?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)), SizedBox(height: 6), Text('Your chat history will sync to your account.', style: TextStyle(color: Color(0xFF9BA5C0)))]))
                   : ListView.builder(controller: scroll, padding: const EdgeInsets.all(16), itemCount: messages.length, itemBuilder: (_, i) {
                       final m = messages[i];
                       final user = m['role'] == 'user';
@@ -324,7 +371,7 @@ class ProfilePage extends StatelessWidget {
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
   @override
-  Widget build(BuildContext context) => SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [const Text('Settings', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)), const SizedBox(height: 18), const Card(child: ListTile(leading: Icon(Icons.security), title: Text('Privacy & security'), subtitle: Text('AI provider credentials remain server-side.'))), const Card(child: ListTile(leading: Icon(Icons.auto_awesome), title: Text('AI modes'), subtitle: Text('Chat, Code, Study, Write and Creative'))), const Card(child: ListTile(leading: Icon(Icons.info_outline), title: Text('About Destiny AI'), subtitle: Text('Premium AI assistant'))), const SizedBox(height: 18), FilledButton.tonalIcon(onPressed: () => Supabase.instance.client.auth.signOut(), icon: const Icon(Icons.logout), label: const Text('Sign out'))]));
+  Widget build(BuildContext context) => SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [const Text('Settings', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)), const SizedBox(height: 18), const Card(child: ListTile(leading: Icon(Icons.security), title: Text('Privacy & security'), subtitle: Text('AI provider credentials remain server-side.'))), const Card(child: ListTile(leading: Icon(Icons.auto_awesome), title: Text('AI modes'), subtitle: Text('Chat, Code, Study, Write and Creative'))), const Card(child: ListTile(leading: Icon(Icons.history), title: Text('Chat history'), subtitle: Text('Messages sync to your signed-in Supabase account.'))), const Card(child: ListTile(leading: Icon(Icons.image_outlined), title: Text('AI Creation'), subtitle: Text('Open Create to generate images securely.'))), const Card(child: ListTile(leading: Icon(Icons.info_outline), title: Text('About Destiny AI'), subtitle: Text('Premium AI assistant'))), const SizedBox(height: 18), FilledButton.tonalIcon(onPressed: () => Supabase.instance.client.auth.signOut(), icon: const Icon(Icons.logout), label: const Text('Sign out'))]));
 }
 
 extension<T> on Iterable<T> {
