@@ -532,6 +532,8 @@ export default function App() {
             message: text,
             prompt: text,
             mode,
+            memory: memoryEnabled ? memoryText : "",
+            project: selectedProject,
             messages: history,
           }),
         }
@@ -710,24 +712,25 @@ export default function App() {
     Alert.alert("Canvas saved", "Your canvas is stored on this device.");
   };
 
+  // CHATGPT_FEATURES_HARDENED_V1
   const createProject = async () => {
-    Alert.prompt(
-      "New project",
-      "Enter a project name",
-      async (name) => {
-        const value = name?.trim();
-        if (!value) return;
-        const next = [...projects, value];
-        setProjects(next);
-        setSelectedProject(value);
-        await AsyncStorage.setItem("destiny_ai_projects_v1", JSON.stringify(next));
-      }
-    );
+    const value = `Project ${projects.length + 1}`;
+    const next = [...projects, value];
+    setProjects(next);
+    setSelectedProject(value);
+    await AsyncStorage.setItem("destiny_ai_projects_v1", JSON.stringify(next));
+    Alert.alert("Project created", `${value} is ready.`);
   };
 
   const chooseCustomGPT = (name: string, instructions: string) => {
+    const modeMap: Record<string, ChatMode> = {
+      Coder: "Code",
+      Writer: "Write",
+      Tutor: "Study",
+      Researcher: "Chat",
+    };
+    setMode(modeMap[name] ?? "Chat");
     setMessage(instructions);
-    setMode(name as ChatMode);
     setScreen("chat");
   };
 
