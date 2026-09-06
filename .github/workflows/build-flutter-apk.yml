@@ -60,8 +60,7 @@ jobs:
           main = Path('lib/main.dart')
           source = main.read_text(encoding='utf-8')
 
-          # The standalone premium ChatPage is the single source of truth.
-          # Remove the older embedded implementation from main.dart and import it.
+          # Use the standalone premium ChatPage implementation.
           source, removed = re.subn(
               r'class ChatPage extends StatefulWidget \{.*?\nclass ProfilePage extends StatefulWidget \{',
               'class ProfilePage extends StatefulWidget {',
@@ -79,19 +78,20 @@ jobs:
                   1,
               )
 
-          # main.dart no longer uses these packages directly.
           source = source.replace("import 'package:image_picker/image_picker.dart';\n", '')
           source = source.replace("import 'package:shared_preferences/shared_preferences.dart';\n", '')
 
-          # Repair missing closing parentheses in ConfigScreen and LoginScreen.
+          # ConfigScreen: Column + Padding + Center require three closing parens.
           source = source.replace(
               "        ])),\n      );\n}\n\nclass AuthGate",
               "        ]))),\n      );\n}\n\nclass AuthGate",
               1,
           )
+
+          # LoginScreen: Column + ConstrainedBox + SingleChildScrollView + Center + SafeArea.
           source = source.replace(
               "        ])))),\n      );\n}\n\nclass HomeScreen",
-              "        ])))),\n      );\n}\n\nclass HomeScreen",
+              "        ]))),\n      );\n}\n\nclass HomeScreen",
               1,
           )
 
@@ -109,8 +109,7 @@ jobs:
           else:
               print('Media Studio structure already repaired or pattern not present.')
 
-          # Flutter's generated test still references the old project name MyApp.
-          # It is not part of the Destiny AI application and should not block APK analysis.
+          # Remove Flutter's stale generated test that references package:destinyai/MyApp.
           test_file = Path('test/widget_test.dart')
           if test_file.exists():
               test_file.unlink()
