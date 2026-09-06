@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -16,18 +15,18 @@ const _chatMuted = Color(0xFFA8ABC0);
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
+
   @override
-  State<ChatPage> createState() => _ChatState();
+  State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatState extends State<ChatPage> {
-  final input = TextEditingController();
-  final scroll = ScrollController();
-  final picker = ImagePicker();
-  final messages = <Map<String, String>>[];
-  bool busy = false;
-  String mode = 'Chat';
-  XFile? attachment;
+class _ChatPageState extends State<ChatPage> {
+  final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+  final _messages = <Map<String, String>>[];
+  String _mode = 'Chat';
+  XFile? _attachment;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -37,8 +36,8 @@ class _ChatState extends State<ChatPage> {
 
   @override
   void dispose() {
-    input.dispose();
-    scroll.dispose();
+    _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -52,135 +51,136 @@ class _ChatState extends State<ChatPage> {
             .eq('user_id', user.id)
             .order('created_at', ascending: true)
             .limit(80);
-        if (rows is List && rows.isNotEmpty) {
-          final cloud = rows
-              .map<Map<String, String>>((row) => {
-                    'role': (row['role'] ?? 'assistant').toString(),
-                    'text': (row['content'] ?? '').toString(),
-                  })
-              .where((m) => (m['text'] ?? '').isNotEmpty)
-              .toList();
-          if (mounted) {
-            setState(() => messages.addAll(cloud));
-            _scrollToBottom();
+        if (rows.isNotEmpty) {
+          _messages.addAll(rows.map<Map<String, String>>((row) {
+            final map = Map<String, dynamic>.from(row as Map);
+            return {
+              'role': '${map['role'] ?? 'assistant'}',
+              'text': '${map['content'] ?? ''}',
+            };
+          }));
+        }
+      }
+    } catch (_) {}
+
+    if (_messages.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final saved = prefs.getStringList('destiny_chat_history') ?? [];
+        for (final item in saved) {
+          final split = item.indexOf('|');
+          if (split > 0) {
+            _messages.add({
+              'role': item.substring(0, split),
+              'text': item.substring(split + 1),
+            });
           }
-          return;
         }
-      }
-      final p = await SharedPreferences.getInstance();
-      final raw = p.getString('destiny_chat_history');
-      if (raw != null) {
-        final list = (jsonDecode(raw) as List)
-            .map((x) => Map<String, String>.from(x as Map))
-            .toList();
-        if (mounted) {
-          setState(() => messages.addAll(list));
-          _scrollToBottom();
-        }
-      }
-    } catch (e) {
-      debugPrint('History load failed: $e');
+      } catch (_) {}
     }
+    if (mounted) setState(() {});
+    _scrollToBottom();
   }
 
   Future<void> _saveLocalHistory() async {
-    final p = await SharedPreferences.getInstance();
-    final saved = messages.length > 80
-        ? messages.sublist(messages.length - 80)
-        : List<Map<String, String>>.from(messages);
-    await p.setString('destiny_chat_history', jsonEncode(saved));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final values = _messages
+          .take(80)
+          .map((m) => '${m['role']}|${m['text']}')
+          .toList();
+      await prefs.setStringList('destiny_chat_history', values);
+    } catch (_) {}
   }
 
-  Future<void> _saveCloudMessage(String role, String content) async {
+  Future<void> _saveCloudMessage(String role, String text) async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
-      if (user == null || content.trim().isEmpty) return;
+      if (user == null) return;
       await Supabase.instance.client.from('destiny_chat_messages').insert({
         'user_id': user.id,
         'role': role,
-        'content': content.trim(),
+        'content': text,
       });
-    } catch (e) {
-      debugPrint('Cloud history save failed: $e');
-    }
+    } catch (_) {}
   }
 
-  Future<void> chooseImage() async {
-    try {
-      final x = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-        maxWidth: 1800,
-      );
-      if (x != null && mounted) setState(() => attachment = x);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not select image: $e')),
-        );
-      }
-    }
+  Future<void> _chooseImage() async {
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (image != null && mounted) setState(() => _attachment = image);
   }
 
-  Future<void> send() async {
-    final text = input.text.trim();
-    if ((text.isEmpty && attachment == null) || busy) return;
-    final prompt = attachment == null
+  Future<void> _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty && _attachment == null) return;
+    if (_loading) return;
+
+    final prompt = _attachment == null
         ? text
-        : '$text\n[Image attached: ${attachment!.name}]'.trim();
-    input.clear();
+        : '$text\n[Image attached: ${_attachment!.name}]'.trim();
+    _controller.clear();
+    final attachment = _attachment;
     setState(() {
-      messages.add({'role': 'user', 'text': prompt});
-      busy = true;
-      attachment = null;
+      _attachment = null;
+      _messages.add({'role': 'user', 'text': prompt});
+      _loading = true;
     });
-    _scrollToBottom();
     await _saveCloudMessage('user', prompt);
+    await _saveLocalHistory();
+    _scrollToBottom();
+
     try {
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session == null) throw Exception('Please sign in again.');
-      final r = await Supabase.instance.client.functions.invoke(
+      final response = await Supabase.instance.client.functions.invoke(
         'destiny-ai',
         body: {
-          'mode': mode,
-          'messages': messages
+          'mode': _mode,
+          'messages': _messages
               .map((m) => {
                     'role': m['role'] == 'assistant' ? 'assistant' : 'user',
                     'content': m['text'] ?? '',
                   })
               .toList(),
+          if (attachment != null) 'attachment_name': attachment.name,
         },
       );
-      final data = r.data is Map
-          ? Map<String, dynamic>.from(r.data as Map)
+      final data = response.data is Map
+          ? Map<String, dynamic>.from(response.data as Map)
           : <String, dynamic>{};
-      if (r.status >= 400 || data['error'] != null) {
-        throw Exception(data['error'] ?? 'AI request failed (${r.status}).');
+      if (response.status >= 400 || data['error'] != null) {
+        throw Exception(data['error'] ?? 'Destiny AI returned an error.');
       }
-      final answer = (data['response'] ??
-              data['answer'] ??
-              data['message'] ??
-              'No response returned.')
-          .toString();
-      if (mounted) setState(() => messages.add({'role': 'assistant', 'text': answer}));
+      final answer = '${data['response'] ?? data['answer'] ?? data['message'] ?? ''}'.trim();
+      if (answer.isEmpty) throw Exception('No response was returned.');
+      if (!mounted) return;
+      setState(() => _messages.add({'role': 'assistant', 'text': answer}));
       await _saveCloudMessage('assistant', answer);
       await _saveLocalHistory();
     } catch (e) {
-      final errorText = 'Error: $e';
-      if (mounted) setState(() => messages.add({'role': 'assistant', 'text': errorText}));
-      await _saveCloudMessage('assistant', errorText);
-      await _saveLocalHistory();
+      if (!mounted) return;
+      setState(() => _messages.add({
+            'role': 'assistant',
+            'text': 'Sorry, I could not complete that request. Please try again.\n\n$e',
+          }));
     } finally {
-      if (mounted) setState(() => busy = false);
-      _scrollToBottom();
+      if (mounted) {
+        setState(() => _loading = false);
+        _scrollToBottom();
+      }
     }
   }
 
-  Future<void> clearChat() async {
-    if (busy) return;
-    setState(() => messages.clear());
-    final p = await SharedPreferences.getInstance();
-    await p.remove('destiny_chat_history');
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<void> _clearChat() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
@@ -189,26 +189,37 @@ class _ChatState extends State<ChatPage> {
             .delete()
             .eq('user_id', user.id);
       }
-    } catch (e) {
-      debugPrint('Cloud history clear failed: $e');
-    }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('destiny_chat_history');
+    } catch (_) {}
+    if (mounted) setState(_messages.clear);
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !scroll.hasClients) return;
-      scroll.animateTo(
-        scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    });
-  }
-
-  void _quickPrompt(String value) {
-    input.text = value;
-    input.selection = TextSelection.collapsed(offset: input.text.length);
-    FocusScope.of(context).requestFocus(FocusNode());
+  void _showModes() {
+    const modes = ['Chat', 'Code', 'Study', 'Write', 'Creative'];
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _GlassSheet(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Choose an AI mode', style: TextStyle(color: _chatText, fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 14),
+            for (final mode in modes)
+              ListTile(
+                leading: Icon(_mode == mode ? Icons.check_circle : Icons.circle_outlined, color: _mode == mode ? _chatGold : _chatMuted),
+                title: Text(mode, style: const TextStyle(color: _chatText, fontWeight: FontWeight.w600)),
+                onTap: () {
+                  setState(() => _mode = mode);
+                  Navigator.pop(context);
+                },
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -217,14 +228,12 @@ class _ChatState extends State<ChatPage> {
       backgroundColor: _chatBg,
       body: Stack(
         children: [
-          const _ChatAmbientBackground(),
+          Positioned.fill(child: CustomPaint(painter: _GlowPainter())),
           SafeArea(
             child: Column(
               children: [
                 _buildHeader(),
-                Expanded(
-                  child: messages.isEmpty ? _buildEmptyState() : _buildMessages(),
-                ),
+                Expanded(child: _buildMessages()),
                 _buildComposer(),
               ],
             ),
@@ -236,149 +245,83 @@ class _ChatState extends State<ChatPage> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      child: _GlassSurface(
-        radius: 24,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [_chatGold, _chatPink, _chatPurple],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _chatPurple.withValues(alpha: .28),
-                    blurRadius: 20,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
-            ),
-            const SizedBox(width: 11),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Destiny AI', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: _chatText)),
-                  SizedBox(height: 2),
-                  Text('Your intelligent companion', style: TextStyle(fontSize: 11, color: _chatMuted)),
-                ],
-              ),
-            ),
-            _ModePill(
-              mode: mode,
-              onTap: () => _showModes(),
-            ),
-            const SizedBox(width: 4),
-            PopupMenuButton<String>(
-              onSelected: (v) {
-                if (v == 'clear') clearChat();
-              },
-              icon: const Icon(Icons.more_horiz_rounded, color: _chatText),
-              color: const Color(0xFF15182A),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'clear',
-                  child: Row(children: [Icon(Icons.delete_outline_rounded, size: 20), SizedBox(width: 10), Text('Clear chat history')]),
-                ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          _GlassCircle(
+            child: const Icon(Icons.auto_awesome, color: _chatGold, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Destiny AI', style: TextStyle(color: _chatText, fontSize: 18, fontWeight: FontWeight.w800)),
+                Text('Your intelligent companion', style: TextStyle(color: _chatMuted, fontSize: 12)),
               ],
             ),
-          ],
-        ),
+          ),
+          _GlassButton(icon: Icons.tune_rounded, onTap: _showModes),
+          const SizedBox(width: 8),
+          _GlassButton(
+            icon: Icons.more_horiz,
+            onTap: () => showModalBottomSheet<void>(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (_) => _GlassSheet(
+                child: ListTile(
+                  leading: const Icon(Icons.delete_outline, color: _chatText),
+                  title: const Text('Clear chat history', style: TextStyle(color: _chatText)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _clearChat();
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _showModes() async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ModeSheet(current: mode),
-    );
-    if (selected != null && mounted) setState(() => mode = selected);
-  }
-
-  Widget _buildEmptyState() {
-    final suggestions = [
-      ('✨', 'Help me plan my day'),
-      ('💡', 'Explain something simply'),
-      ('💻', 'Write some code'),
-      ('📝', 'Help me write something'),
-    ];
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
-      children: [
-        const SizedBox(height: 26),
-        Center(
-          child: Container(
-            width: 82,
-            height: 82,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [_chatPurple, _chatPink, _chatGold],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [BoxShadow(color: _chatPurple.withValues(alpha: .25), blurRadius: 35)],
-            ),
-            child: const Icon(Icons.auto_awesome_rounded, size: 38, color: Colors.white),
-          ),
-        ),
-        const SizedBox(height: 22),
-        const Center(
-          child: Text(
-            'Hi, I’m Destiny ✨',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: _chatText),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Center(
-          child: Text(
-            'What would you like to create, learn, or explore today?',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, height: 1.45, color: _chatMuted),
-          ),
-        ),
-        const SizedBox(height: 28),
-        ...suggestions.map((item) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _SuggestionCard(
-                emoji: item.$1,
-                text: item.$2,
-                onTap: () => _quickPrompt(item.$2),
-              ),
-            )),
-        const SizedBox(height: 12),
-        Center(
-          child: Text(
-            'Powered by Destiny AI • ${mode.toUpperCase()} mode',
-            style: const TextStyle(fontSize: 11, color: _chatMuted),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildMessages() {
+    if (_messages.isEmpty && !_loading) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 48, 20, 24),
+        children: [
+          const SizedBox(height: 30),
+          Center(child: _HeroOrb()),
+          const SizedBox(height: 24),
+          const Center(child: Text('Hi, I’m Destiny ✨', style: TextStyle(color: _chatText, fontSize: 28, fontWeight: FontWeight.w800))),
+          const SizedBox(height: 10),
+          const Center(child: Text('Ask me anything, create ideas, write code,\nor turn your imagination into media.', textAlign: TextAlign.center, style: TextStyle(color: _chatMuted, height: 1.5))),
+          const SizedBox(height: 28),
+          ...[
+            'Explain something to me simply',
+            'Help me write a professional message',
+            'Build a modern app idea with me',
+          ].map((text) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _SuggestionCard(text: text, onTap: () {
+                  _controller.text = text;
+                  _send();
+                }),
+              )),
+        ],
+      );
+    }
+
     return ListView.builder(
-      controller: scroll,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-      itemCount: messages.length + (busy ? 1 : 0),
-      itemBuilder: (_, i) {
-        if (busy && i == messages.length) return const _TypingBubble();
-        final m = messages[i];
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+      itemCount: _messages.length + (_loading ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (_loading && index == _messages.length) return const _TypingBubble();
+        final message = _messages[index];
         return _MessageBubble(
-          text: m['text'] ?? '',
-          user: m['role'] == 'user',
+          role: message['role'] ?? 'assistant',
+          text: message['text'] ?? '',
         );
       },
     );
@@ -386,254 +329,105 @@ class _ChatState extends State<ChatPage> {
 
   Widget _buildComposer() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 5, 12, 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (attachment != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _GlassSurface(
-                radius: 17,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.07),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withOpacity(.12)),
+            ),
+            child: Column(
+              children: [
+                if (_attachment != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                    child: Row(children: [
+                      const Icon(Icons.image_outlined, color: _chatPurple, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(_attachment!.name, style: const TextStyle(color: _chatText, fontSize: 12), overflow: TextOverflow.ellipsis)),
+                      IconButton(onPressed: () => setState(() => _attachment = null), icon: const Icon(Icons.close, color: _chatMuted, size: 18)),
+                    ]),
+                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Icon(Icons.image_rounded, color: _chatGold, size: 20),
-                    const SizedBox(width: 9),
+                    IconButton(onPressed: _chooseImage, icon: const Icon(Icons.add_photo_alternate_outlined, color: _chatMuted)),
                     Expanded(
-                      child: Text(
-                        attachment!.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: _chatText, fontSize: 12, fontWeight: FontWeight.w600),
+                      child: TextField(
+                        controller: _controller,
+                        minLines: 1,
+                        maxLines: 6,
+                        style: const TextStyle(color: _chatText),
+                        decoration: const InputDecoration(
+                          hintText: 'Message Destiny…',
+                          hintStyle: TextStyle(color: _chatMuted),
+                          border: InputBorder.none,
+                          filled: false,
+                          contentPadding: EdgeInsets.symmetric(vertical: 15),
+                        ),
+                        onSubmitted: (_) => _send(),
                       ),
                     ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => setState(() => attachment = null),
-                      icon: const Icon(Icons.close_rounded, size: 19, color: _chatMuted),
+                    Padding(
+                      padding: const EdgeInsets.all(7),
+                      child: GestureDetector(
+                        onTap: _send,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [_chatPurple, _chatPink])),
+                          child: Icon(_loading ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded, color: Colors.white),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ),
-          _GlassSurface(
-            radius: 27,
-            padding: const EdgeInsets.fromLTRB(7, 7, 7, 7),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                IconButton(
-                  tooltip: 'Attach image',
-                  onPressed: busy ? null : chooseImage,
-                  icon: const Icon(Icons.add_rounded, color: _chatText),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: input,
-                    minLines: 1,
-                    maxLines: 5,
-                    textCapitalization: TextCapitalization.sentences,
-                    style: const TextStyle(color: _chatText, fontSize: 15, height: 1.35),
-                    onSubmitted: (_) => send(),
-                    decoration: const InputDecoration(
-                      hintText: 'Message Destiny AI…',
-                      hintStyle: TextStyle(color: _chatMuted),
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 7, vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: busy ? null : send,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 47,
-                    height: 47,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: busy
-                          ? LinearGradient(colors: [Colors.white.withValues(alpha: .12), Colors.white.withValues(alpha: .08)])
-                          : const LinearGradient(colors: [_chatPurple, _chatPink], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                      boxShadow: busy ? null : [BoxShadow(color: _chatPurple.withValues(alpha: .25), blurRadius: 20)],
-                    ),
-                    child: Center(
-                      child: busy
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 23),
-                    ),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 9),
+                  child: Row(children: [
+                    Text(_mode, style: const TextStyle(color: _chatMuted, fontSize: 11, fontWeight: FontWeight.w700)),
+                    const Spacer(),
+                    const Text('Destiny AI can make mistakes', style: TextStyle(color: _chatMuted, fontSize: 10)),
+                  ]),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 7),
-          const Text(
-            'Destiny AI can make mistakes. Check important information.',
-            style: TextStyle(fontSize: 9.5, color: _chatMuted),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _ChatAmbientBackground extends StatelessWidget {
-  const _ChatAmbientBackground();
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-        child: Stack(
-          children: [
-            Positioned(top: -100, right: -80, child: _Glow(color: _chatPurple, size: 260)),
-            Positioned(top: 180, left: -150, child: _Glow(color: _chatBlue, size: 300)),
-            Positioned(bottom: -130, right: -90, child: _Glow(color: _chatPink, size: 300)),
-            Positioned(bottom: 170, left: 60, child: _Glow(color: _chatGold, size: 120)),
-          ],
-        ),
-      );
-}
-
-class _Glow extends StatelessWidget {
-  final Color color;
-  final double size;
-  const _Glow({required this.color, required this.size});
-  @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.withValues(alpha: .07),
-          boxShadow: [BoxShadow(color: color.withValues(alpha: .11), blurRadius: 100, spreadRadius: 45)],
-        ),
-      );
-}
-
-class _GlassSurface extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final double radius;
-  const _GlassSurface({required this.child, required this.padding, this.radius = 24});
-  @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .055),
-              borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: Colors.white.withValues(alpha: .105)),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .25), blurRadius: 28, offset: const Offset(0, 10))],
-            ),
-            child: child,
-          ),
-        ),
-      );
-}
-
-class _ModePill extends StatelessWidget {
-  final String mode;
-  final VoidCallback onTap;
-  const _ModePill({required this.mode, required this.onTap});
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [Colors.white.withValues(alpha: .08), _chatPurple.withValues(alpha: .10)]),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.white.withValues(alpha: .09)),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.tune_rounded, size: 15, color: _chatGold),
-            const SizedBox(width: 5),
-            Text(mode, style: const TextStyle(color: _chatText, fontSize: 11, fontWeight: FontWeight.w700)),
-            const SizedBox(width: 2),
-            const Icon(Icons.keyboard_arrow_down_rounded, size: 15, color: _chatMuted),
-          ]),
-        ),
-      );
-}
-
-class _SuggestionCard extends StatelessWidget {
-  final String emoji;
-  final String text;
-  final VoidCallback onTap;
-  const _SuggestionCard({required this.emoji, required this.text, required this.onTap});
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: _GlassSurface(
-          radius: 20,
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
-          child: Row(children: [
-            Text(emoji, style: const TextStyle(fontSize: 21)),
-            const SizedBox(width: 12),
-            Expanded(child: Text(text, style: const TextStyle(color: _chatText, fontSize: 13.5, fontWeight: FontWeight.w600))),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: _chatMuted),
-          ]),
-        ),
-      );
-}
-
 class _MessageBubble extends StatelessWidget {
+  final String role;
   final String text;
-  final bool user;
-  const _MessageBubble({required this.text, required this.user});
+  const _MessageBubble({required this.role, required this.text});
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
-      child: Row(
-        mainAxisAlignment: user ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!user) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(colors: [_chatPurple, _chatPink]),
-                boxShadow: [BoxShadow(color: _chatPurple.withValues(alpha: .20), blurRadius: 15)],
-              ),
-              child: const Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.white),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 700),
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: user
-                    ? const LinearGradient(colors: [_chatPurple, _chatPink], begin: Alignment.topLeft, end: Alignment.bottomRight)
-                    : null,
-                color: user ? null : Colors.white.withValues(alpha: .055),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(21),
-                  topRight: const Radius.circular(21),
-                  bottomLeft: Radius.circular(user ? 21 : 6),
-                  bottomRight: Radius.circular(user ? 6 : 21),
-                ),
-                border: Border.all(color: Colors.white.withValues(alpha: user ? .10 : .09)),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 20, offset: const Offset(0, 8))],
-              ),
-              child: Text(
-                text,
-                style: const TextStyle(color: _chatText, fontSize: 14.5, height: 1.48),
-              ),
-            ),
+    final isUser = role == 'user';
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .86),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: isUser ? _chatPurple.withOpacity(.20) : Colors.white.withOpacity(.065),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isUser ? 20 : 5),
+            bottomRight: Radius.circular(isUser ? 5 : 20),
           ),
-          if (user) const SizedBox(width: 40),
-        ],
+          border: Border.all(color: Colors.white.withOpacity(.10)),
+        ),
+        child: Text(text, style: const TextStyle(color: _chatText, fontSize: 15, height: 1.5)),
       ),
     );
   }
@@ -642,62 +436,103 @@ class _MessageBubble extends StatelessWidget {
 class _TypingBubble extends StatelessWidget {
   const _TypingBubble();
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 15),
-        child: Row(children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [_chatPurple, _chatPink])),
-            child: const Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.white),
-          ),
-          const SizedBox(width: 8),
-          _GlassSurface(
-            radius: 20,
-            padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 14),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              for (int i = 0; i < 3; i++) ...[
-                if (i > 0) const SizedBox(width: 4),
-                Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: _chatMuted)),
-              ],
-            ]),
-          ),
-        ]),
+  Widget build(BuildContext context) => const Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: EdgeInsets.only(left: 10, bottom: 12),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _Dot(delay: 0),
+            SizedBox(width: 4),
+            _Dot(delay: 120),
+            SizedBox(width: 4),
+            _Dot(delay: 240),
+          ]),
+        ),
       );
 }
 
-class _ModeSheet extends StatelessWidget {
-  final String current;
-  const _ModeSheet({required this.current});
+class _Dot extends StatelessWidget {
+  final int delay;
+  const _Dot({required this.delay});
   @override
-  Widget build(BuildContext context) {
-    const modes = [
-      ('Chat', Icons.chat_bubble_outline_rounded, _chatPurple),
-      ('Code', Icons.code_rounded, _chatBlue),
-      ('Study', Icons.school_outlined, _chatGold),
-      ('Write', Icons.edit_note_rounded, _chatPink),
-      ('Creative', Icons.auto_awesome_outlined, _chatPurple),
-    ];
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0B0E1B),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 42, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(4))),
-        const SizedBox(height: 20),
-        const Align(alignment: Alignment.centerLeft, child: Text('Choose a mode', style: TextStyle(color: _chatText, fontSize: 20, fontWeight: FontWeight.w900))),
-        const SizedBox(height: 14),
-        ...modes.map((m) => ListTile(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
-              tileColor: m.$1 == current ? Colors.white.withValues(alpha: .07) : Colors.transparent,
-              leading: Container(width: 40, height: 40, decoration: BoxDecoration(shape: BoxShape.circle, color: m.$3.withValues(alpha: .14)), child: Icon(m.$2, color: m.$3, size: 20)),
-              title: Text(m.$1, style: const TextStyle(color: _chatText, fontWeight: FontWeight.w700)),
-              trailing: m.$1 == current ? const Icon(Icons.check_circle_rounded, color: _chatGold) : null,
-              onTap: () => Navigator.pop(context, m.$1),
-            )),
-      ]),
-    );
+  Widget build(BuildContext context) => Container(width: 7, height: 7, decoration: const BoxDecoration(shape: BoxShape.circle, color: _chatPurple));
+}
+
+class _SuggestionCard extends StatelessWidget {
+  final String text;
+  final VoidCallback onTap;
+  const _SuggestionCard({required this.text, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(.055), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withOpacity(.10))),
+              child: Row(children: [const Icon(Icons.auto_awesome, color: _chatGold, size: 18), const SizedBox(width: 12), Expanded(child: Text(text, style: const TextStyle(color: _chatText, fontWeight: FontWeight.w600))), const Icon(Icons.arrow_forward_ios, color: _chatMuted, size: 14)]),
+            ),
+          ),
+        ),
+      );
+}
+
+class _GlassButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _GlassButton({required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(onTap: onTap, child: _GlassCircle(child: Icon(icon, color: _chatText, size: 19)));
+}
+
+class _GlassCircle extends StatelessWidget {
+  final Widget child;
+  const _GlassCircle({required this.child});
+  @override
+  Widget build(BuildContext context) => Container(width: 42, height: 42, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(.07), border: Border.all(color: Colors.white.withOpacity(.11))), child: Center(child: child));
+}
+
+class _HeroOrb extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 92,
+        height: 92,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(colors: [_chatPurple, _chatPink], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          boxShadow: [BoxShadow(color: _chatPurple.withOpacity(.28), blurRadius: 36, spreadRadius: 8)],
+        ),
+        child: const Icon(Icons.auto_awesome, color: Colors.white, size: 38),
+      );
+}
+
+class _GlassSheet extends StatelessWidget {
+  final Widget child;
+  const _GlassSheet({required this.child});
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(18, 22, 18, 30),
+            decoration: BoxDecoration(color: const Color(0xFF101326).withOpacity(.94), border: Border(top: BorderSide(color: Colors.white.withOpacity(.12)))),
+            child: child,
+          ),
+        ),
+      );
+}
+
+class _GlowPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p1 = Paint()..shader = RadialGradient(colors: [_chatPurple.withOpacity(.13), Colors.transparent]).createShader(Rect.fromCircle(center: Offset(size.width * .15, size.height * .18), radius: size.width * .65));
+    final p2 = Paint()..shader = RadialGradient(colors: [_chatPink.withOpacity(.09), Colors.transparent]).createShader(Rect.fromCircle(center: Offset(size.width * .9, size.height * .35), radius: size.width * .6));
+    canvas.drawRect(Offset.zero & size, p1);
+    canvas.drawRect(Offset.zero & size, p2);
   }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
