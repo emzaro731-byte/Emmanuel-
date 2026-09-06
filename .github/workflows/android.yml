@@ -11,6 +11,7 @@ permissions:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v5
 
@@ -18,6 +19,12 @@ jobs:
         with:
           node-version: "20"
           cache: npm
+
+      - name: Restore Destiny AI logo asset
+        run: |
+          mkdir -p assets
+          base64 --decode assets/destiny-ai-icon.jpg.base64 > assets/destiny-ai-icon.jpg
+          test -s assets/destiny-ai-icon.jpg
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
@@ -30,7 +37,7 @@ jobs:
       - name: Remove old generated Android project
         run: rm -rf android
 
-      - name: Generate fresh Android project
+      - name: Generate fresh Android project with new Destiny AI icon
         run: npx expo prebuild --platform android --clean --non-interactive
 
       - name: Build release APK
