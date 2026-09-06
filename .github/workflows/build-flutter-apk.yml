@@ -51,6 +51,33 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Apply premium liquid glass chat
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          main = Path('lib/main.dart')
+          chat = Path('lib/screens/chat_page.dart').read_text(encoding='utf-8').strip()
+          source = main.read_text(encoding='utf-8')
+
+          if "import 'screens/chat_page.dart';" not in source:
+              source = source.replace(
+                  "import 'screens/media_studio_page.dart';",
+                  "import 'screens/media_studio_page.dart';\nimport 'screens/chat_page.dart';",
+                  1,
+              )
+
+          pattern = r'class ChatPage extends StatefulWidget \{.*?\nclass ProfilePage extends StatefulWidget \{'
+          replacement = chat + "\n\nclass ProfilePage extends StatefulWidget {"
+          updated, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('Could not locate the existing ChatPage block in lib/main.dart')
+
+          main.write_text(updated, encoding='utf-8')
+          print('Premium liquid glass chat applied successfully.')
+          PY
+
       - name: Static analysis report
         run: |
           flutter analyze > analyze.log 2>&1 || true
