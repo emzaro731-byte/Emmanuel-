@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'flutter/**'
+      - '.github/workflows/build-flutter-apk.yml'
     branches: [main]
 
 jobs:
@@ -24,7 +25,16 @@ jobs:
           cache: true
 
       - name: Generate Android project
-        run: flutter create --platforms=android --org com.destinyai .
+        run: |
+          if [ ! -d android ]; then
+            flutter create --platforms=android --org com.destinyai --project-name destinyai .
+          fi
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i 's/applicationId = "com.destinyai.destinyai"/applicationId = "com.destinyai"/' android/app/build.gradle.kts
+          fi
+          if [ -f android/app/build.gradle ]; then
+            sed -i 's/applicationId "com.destinyai.destinyai"/applicationId "com.destinyai"/' android/app/build.gradle
+          fi
 
       - name: Install dependencies
         run: flutter pub get
@@ -34,6 +44,9 @@ jobs:
 
       - name: Build release APK
         run: flutter build apk --release --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" --dart-define=SUPABASE_PUBLISHABLE_KEY="${{ secrets.SUPABASE_PUBLISHABLE_KEY }}"
+
+      - name: Verify APK
+        run: test -s build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
