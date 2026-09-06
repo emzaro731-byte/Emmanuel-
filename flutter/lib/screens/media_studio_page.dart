@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/media_service.dart';
 
 const studioGold = Color(0xFFD8B15A);
@@ -13,23 +14,59 @@ class MediaStudioPage extends StatefulWidget {
 
 class _MediaStudioPageState extends State<MediaStudioPage> {
   final prompt = TextEditingController();
+  final lyrics = TextEditingController();
+  int tab = 0;
   bool busy = false;
-  String? imageUrl;
+  bool videoSound = false;
+  bool instrumental = false;
+  String? mediaUrl;
+  String? mediaType;
+  String? status;
+
+  String get title => const ['Image', 'Video', 'Music'][tab];
 
   Future<void> generate() async {
     final value = prompt.text.trim();
     if (value.isEmpty || busy) return;
-    setState(() => busy = true);
+
+    setState(() {
+      busy = true;
+      mediaUrl = null;
+      mediaType = null;
+      status = 'Connecting to Destiny AI...';
+    });
+
     try {
-      final data = await MediaService.generateImage(prompt: value);
-      final url = MediaService.extractImageUrl(data);
-      if (!mounted) return;
-      if (url == null) {
-        throw Exception('The image provider returned no image URL.');
+      Map<String, dynamic> data;
+      if (tab == 0) {
+        status = 'Generating your image...';
+        data = await MediaService.generateImage(prompt: value);
+        mediaUrl = MediaService.extractImageUrl(data);
+        mediaType = 'image';
+      } else if (tab == 1) {
+        status = 'Generating your video. This can take a few minutes...';
+        data = await MediaService.generateVideo(prompt: value, sound: videoSound);
+        mediaUrl = MediaService.extractVideoUrl(data);
+        mediaType = 'video';
+      } else {
+        status = 'Composing your music...';
+        data = await MediaService.generateMusic(
+          prompt: value,
+          lyrics: lyrics.text,
+          instrumental: instrumental,
+        );
+        mediaUrl = MediaService.extractAudioUrl(data);
+        mediaType = 'music';
       }
-      setState(() => imageUrl = url);
+
+      if (!mounted) return;
+      if (mediaUrl == null) {
+        throw Exception('The provider returned no $title URL.');
+      }
+      setState(() => status = '$title ready');
     } catch (e) {
       if (mounted) {
+        setState(() => status = null);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
@@ -37,55 +74,162 @@ class _MediaStudioPageState extends State<MediaStudioPage> {
     }
   }
 
+  Future<void> openMedia() async {
+    final url = mediaUrl;
+    if (url == null) return;
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to open the generated media.')));
+    }
+  }
+
+  void changeTab(int value) {
+    if (busy) return;
+    setState(() {
+      tab = value;
+      mediaUrl = null;
+      mediaType = null;
+      status = null;
+      prompt.clear();
+      lyrics.clear();
+    });
+  }
+
   @override
   void dispose() {
     prompt.dispose();
+    lyrics.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('AI Studio'), backgroundColor: Colors.transparent),
-        body: ListView(
-          padding: const EdgeInsets.all(18),
-          children: [
-            const Text('Create with AI', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            const Text('Generate images from natural-language prompts.', style: TextStyle(color: Color(0xFF9BA5C0))),
-            const SizedBox(height: 20),
-            TextField(
-              controller: prompt,
-              minLines: 3,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                labelText: 'Describe your image',
-                hintText: 'A cinematic futuristic city at sunset...',
-                prefixIcon: Icon(Icons.auto_awesome, color: studioGold),
-              ),
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('AI Studio'),
+        backgroundColor: Colors.transparent,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          const Text('Create with AI', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          const Text(
+            'Turn your ideas into images, cinematic videos, and music.',
+            style: TextStyle(color: Color(0xFF9BA5C0)),
+          ),
+          const SizedBox(height: 18),
+          SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 0, icon: Icon(Icons.image_outlined), label: Text('Image')),
+              ButtonSegment(value: 1, icon: Icon(Icons.movie_outlined), label: Text('Video')),
+              ButtonSegment(value: 2, icon: Icon(Icons.music_note_outlined), label: Text('Music')),
+            ],
+            selected: {tab},
+            onSelectionChanged: (value) => changeTab(value.first),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: prompt,
+            minLines: 3,
+            maxLines: 7,
+            decoration: InputDecoration(
+              labelText: tab == 0 ? 'Describe your image' : tab == 1 ? 'Describe your video' : 'Describe your music',
+              hintText: tab == 0
+                  ? 'A cinematic futuristic city at sunset...'
+                  : tab == 1
+                      ? 'A cinematic drone shot over a futuristic Lagos skyline...'
+                      : 'Afrobeat, energetic, uplifting, modern African pop... ',
+              prefixIcon: Icon(tab == 0 ? Icons.auto_awesome : tab == 1 ? Icons.movie_creation_outlined : Icons.music_note, color: studioGold),
             ),
-            const SizedBox(height: 14),
-            FilledButton.icon(
-              onPressed: busy ? null : generate,
-              icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.image_outlined),
-              label: Text(busy ? 'Generating...' : 'Generate image'),
+          ),
+          if (tab == 1) ...[
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Generate native video sound'),
+              subtitle: const Text('Let the video model create matching audio.'),
+              value: videoSound,
+              onChanged: busy ? null : (value) => setState(() => videoSound = value),
             ),
-            if (imageUrl != null) ...[
-              const SizedBox(height: 22),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: Image.network(imageUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox(height: 220, child: Center(child: Text('Unable to display generated image.')))),
+          ],
+          if (tab == 2) ...[
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Instrumental only'),
+              subtitle: const Text('Generate music without vocals.'),
+              value: instrumental,
+              onChanged: busy ? null : (value) => setState(() => instrumental = value),
+            ),
+            if (!instrumental) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: lyrics,
+                minLines: 3,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  labelText: 'Lyrics (optional)',
+                  hintText: '[Verse]\nWrite your lyrics here...\n[Chorus]\nYour hook goes here...',
+                ),
               ),
             ],
-            const SizedBox(height: 22),
-            const Card(
+          ],
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: busy ? null : generate,
+            icon: busy
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(tab == 0 ? Icons.image_outlined : tab == 1 ? Icons.movie_outlined : Icons.music_note_outlined),
+            label: Text(busy ? 'Creating...' : 'Generate $title'),
+          ),
+          if (status != null) ...[
+            const SizedBox(height: 14),
+            Center(child: Text(status!, style: const TextStyle(color: Color(0xFF9BA5C0)))),
+          ],
+          if (mediaUrl != null) ...[
+            const SizedBox(height: 20),
+            Card(
               color: studioCard,
-              child: ListTile(
-                leading: Icon(Icons.lock_outline, color: studioGold),
-                title: Text('Secure provider connection'),
-                subtitle: Text('The provider API key stays in Supabase server-side secrets and is never shipped in the APK.'),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Icon(
+                      mediaType == 'image' ? Icons.image : mediaType == 'video' ? Icons.movie : Icons.audiotrack,
+                      size: 48,
+                      color: studioGold,
+                    ),
+                    const SizedBox(height: 10),
+                    Text('$title generated successfully', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Your generated media is ready to preview or open.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Color(0xFF9BA5C0)),
+                    ),
+                    const SizedBox(height: 14),
+                    FilledButton.icon(
+                      onPressed: openMedia,
+                      icon: Icon(mediaType == 'music' ? Icons.play_arrow : Icons.open_in_new),
+                      label: Text(mediaType == 'music' ? 'Play music' : 'Open $title'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
-        ),
-      );
+          const SizedBox(height: 22),
+          const Card(
+            color: studioCard,
+            child: ListTile(
+              leading: Icon(Icons.lock_outline, color: studioGold),
+              title: Text('Secure provider connection'),
+              subtitle: Text('The fal API key stays in Supabase server-side secrets and is never shipped in the APK.'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
