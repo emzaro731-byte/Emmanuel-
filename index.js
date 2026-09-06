@@ -1,8 +1,7 @@
 import React from "react";
-import { AppRegistry, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { registerRootComponent } from "expo";
 import App from "./App";
-
-const APP_NAME = "DestinyAI";
 
 class AppErrorBoundary extends React.Component {
   state = { error: null };
@@ -58,8 +57,14 @@ const styles = StyleSheet.create({
   },
 });
 
-AppRegistry.registerComponent(APP_NAME, () => () => (
-  <AppErrorBoundary>
-    <App />
-  </AppErrorBoundary>
-));
+function Root() {
+  return (
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
+  );
+}
+
+// Expo's registerRootComponent uses the correct native component name
+// for both Expo/prebuild and standalone Android builds.
+registerRootComponent(Root);
