@@ -1,4 +1,4 @@
-name: Destiny AI Clean APK Build
+name: Destiny AI Stable Android APK
 
 on:
   push:
@@ -13,14 +13,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v6
+      - name: Setup Node 20
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: npm
 
-      - name: Create valid Destiny AI icon
+      - name: Create Destiny AI icon
         run: |
           python -m pip install --quiet pillow
           python <<'PY'
@@ -28,48 +30,32 @@ jobs:
           import math
           size = 1024
           im = Image.new("RGB", (size, size), (2, 8, 22))
-          d = ImageDraw.Draw(im)
-          cx = cy = size // 2
-
-          # blue glow
-          glow = Image.new("RGBA", im.size, (0,0,0,0))
+          glow = Image.new("RGBA", im.size, (0, 0, 0, 0))
           gd = ImageDraw.Draw(glow)
-          gd.ellipse((180,180,844,844), fill=(0,110,255,70))
+          gd.ellipse((170, 170, 854, 854), fill=(0, 110, 255, 80))
           glow = glow.filter(ImageFilter.GaussianBlur(70))
           im = Image.alpha_composite(im.convert("RGBA"), glow)
           d = ImageDraw.Draw(im)
-
+          cx = cy = size // 2
           gold = (245, 185, 35, 255)
-          gold2 = (255, 220, 90, 255)
-          blue = (30, 190, 255, 255)
-
-          # outer rings
-          for r, width in [(390,34),(320,18),(230,12)]:
-              d.ellipse((cx-r,cy-r,cx+r,cy+r), outline=gold, width=width)
-
-          # compass points
-          for a in [0,90,180,270]:
+          bright = (255, 220, 90, 255)
+          for r, width in [(390, 34), (320, 18), (230, 12)]:
+              d.ellipse((cx-r, cy-r, cx+r, cy+r), outline=gold, width=width)
+          for a in [0, 90, 180, 270]:
               rad = math.radians(a)
               tip = (cx + math.cos(rad)*430, cy + math.sin(rad)*430)
               left = (cx + math.cos(rad+0.18)*175, cy + math.sin(rad+0.18)*175)
               right = (cx + math.cos(rad-0.18)*175, cy + math.sin(rad-0.18)*175)
-              d.polygon([tip,left,right], fill=gold2, outline=gold)
-
-          # AI circuit lines
-          for a in range(0,360,45):
+              d.polygon([tip, left, right], fill=bright, outline=gold)
+          for a in range(0, 360, 45):
               rad = math.radians(a)
-              x1 = cx + math.cos(rad)*105
-              y1 = cy + math.sin(rad)*105
-              x2 = cx + math.cos(rad)*255
-              y2 = cy + math.sin(rad)*255
-              d.line((x1,y1,x2,y2), fill=gold, width=10)
-              d.ellipse((x2-16,y2-16,x2+16,y2+16), fill=gold2)
-
-          # center energy
-          d.ellipse((cx-115,cy-115,cx+115,cy+115), fill=(8,55,105,255), outline=gold2, width=14)
-          d.ellipse((cx-55,cy-55,cx+55,cy+55), fill=(120,235,255,255))
-          d.ellipse((cx-22,cy-22,cx+22,cy+22), fill=(255,255,255,255))
-
+              x1, y1 = cx + math.cos(rad)*105, cy + math.sin(rad)*105
+              x2, y2 = cx + math.cos(rad)*255, cy + math.sin(rad)*255
+              d.line((x1, y1, x2, y2), fill=gold, width=10)
+              d.ellipse((x2-16, y2-16, x2+16, y2+16), fill=bright)
+          d.ellipse((cx-115, cy-115, cx+115, cy+115), fill=(8,55,105,255), outline=bright, width=14)
+          d.ellipse((cx-55, cy-55, cx+55, cy+55), fill=(120,235,255,255))
+          d.ellipse((cx-22, cy-22, cx+22, cy+22), fill=(255,255,255,255))
           im.convert("RGB").save("assets/destiny-ai-icon.png", "PNG", optimize=True)
           PY
           test -s assets/destiny-ai-icon.png
@@ -77,8 +63,10 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Check Expo project
-        run: npx expo-doctor || true
+      - name: Verify Expo and React Native versions
+        run: |
+          node -e "const p=require('./package.json'); console.log('Expo:',p.dependencies.expo); console.log('React Native:',p.dependencies['react-native']);"
+          npx expo --version
 
       - name: Remove old Android project
         run: rm -rf android
@@ -86,16 +74,28 @@ jobs:
       - name: Generate fresh Android project
         run: npx expo prebuild --platform android --clean --non-interactive
 
+      - name: Pin Gradle 8.13 for Kotlin compatibility
+        working-directory: android
+        run: |
+          sed -i 's#gradle-[0-9][0-9.]*-bin.zip#gradle-8.13-bin.zip#' gradle/wrapper/gradle-wrapper.properties
+          grep 'distributionUrl' gradle/wrapper/gradle-wrapper.properties
+
       - name: Build release APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew --stop || true
+          ./gradlew assembleRelease --no-daemon --stacktrace --warning-mode all
+
+      - name: Verify APK
+        run: |
+          test -s android/app/build/outputs/apk/release/app-release.apk
+          ls -lh android/app/build/outputs/apk/release/app-release.apk
 
       - name: Upload Destiny AI APK
         uses: actions/upload-artifact@v4
         with:
-          name: Destiny-AI-Clean-APK
+          name: Destiny-AI-Stable-APK
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
