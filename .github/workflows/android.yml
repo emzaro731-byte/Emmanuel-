@@ -1,280 +1,95 @@
-name: Destiny AI Android Build
+name: Destiny AI Android APK
 
 on:
 workflow_dispatch:
 
-push:
-branches:
-- main
-
-permissions:
-contents: read
-
 jobs:
 build:
-name: Build Destiny AI APK
+name: Build Destiny AI
 runs-on: ubuntu-latest
 
 steps:
-
-  # ==========================================
-  # 1. CHECKOUT
-  # ==========================================
-  - name: Checkout repository
+  - name: Checkout
     uses: actions/checkout@v4
 
-  # ==========================================
-  # 2. JAVA 17
-  # ==========================================
   - name: Setup Java 17
     uses: actions/setup-java@v4
     with:
       distribution: temurin
       java-version: "17"
 
-  # ==========================================
-  # 3. NODE 20
-  # ==========================================
   - name: Setup Node.js 20
     uses: actions/setup-node@v4
     with:
       node-version: "20"
-      cache: npm
 
-  # ==========================================
-  # 4. ANDROID SDK
-  # ==========================================
   - name: Setup Android SDK
     uses: android-actions/setup-android@v3
 
-  # ==========================================
-  # 5. ANDROID SDK PACKAGES
-  # ==========================================
-  - name: Install Android SDK packages
+  - name: Install Android SDK
     run: |
       yes | sdkmanager --licenses || true
+      sdkmanager "platform-tools"
+      sdkmanager "platforms;android-35"
+      sdkmanager "build-tools;35.0.0"
 
-      sdkmanager \
-        "platform-tools" \
-        "platforms;android-35" \
-        "build-tools;35.0.0"
-
-  # ==========================================
-  # 6. INSTALL NPM PACKAGES
-  # ==========================================
-  - name: Install npm dependencies
+  - name: Install dependencies
     run: npm install
 
-  # ==========================================
-  # 7. VERIFY PROJECT
-  # ==========================================
-  - name: Verify project structure
+  - name: Check required files
     run: |
-      echo "======================================"
-      echo "DESTINY AI PROJECT"
-      echo "======================================"
-
-      echo ""
-      echo "Current directory:"
-      pwd
-
-      echo ""
-      echo "Root files:"
-      ls -la
-
-      echo ""
-      echo "Checking required files..."
-
       test -f package.json
       test -f App.tsx
       test -f index.js
       test -f app.json
       test -f lib/supabase.ts
+      echo "All required files exist."
 
-      echo ""
-      echo "SUCCESS: Required files found."
-
-  # ==========================================
-  # 8. CHECK FOR OLD CONFLICTING FILES
-  # ==========================================
-  - name: Check entry files
-    run: |
-      echo "======================================"
-      echo "ENTRY FILE CHECK"
-      echo "======================================"
-
-      if [ -f App.js ]; then
-        echo "WARNING: App.js exists."
-        echo "App.js should normally be removed."
-        exit 1
-      fi
-
-      if [ -f index.ts ]; then
-        echo "WARNING: index.ts exists."
-        echo "index.ts should normally be removed."
-        exit 1
-      fi
-
-      echo "SUCCESS: No conflicting entry files found."
-
-  # ==========================================
-  # 9. TYPESCRIPT CHECK
-  # ==========================================
-  - name: TypeScript check
-    run: npx tsc --noEmit
-
-  # ==========================================
-  # 10. INSTALL GRADLE 8.13
-  # ==========================================
-  - name: Setup Gradle 8.13
+  - name: Setup Gradle
     uses: gradle/actions/setup-gradle@v4
     with:
       gradle-version: "8.13"
 
-  # ==========================================
-  # 11. GENERATE GRADLE WRAPPER
-  # ==========================================
   - name: Generate Gradle wrapper
     working-directory: android
     run: |
-      echo "======================================"
-      echo "GENERATING GRADLE WRAPPER"
-      echo "======================================"
+      gradle wrapper --gradle-version 8.13 --distribution-type bin
 
-      gradle wrapper \
-        --gradle-version 8.13 \
-        --distribution-type bin
-
-      echo ""
-      echo "Wrapper files:"
-      ls -la
-      ls -la gradle/wrapper
-
-  # ==========================================
-  # 12. VERIFY GRADLE WRAPPER
-  # ==========================================
-  - name: Verify Gradle wrapper
-    run: |
-      echo "======================================"
-      echo "VERIFYING GRADLE WRAPPER"
-      echo "======================================"
-
-      test -f android/gradlew
-      test -f android/gradlew.bat
-      test -f android/gradle/wrapper/gradle-wrapper.jar
-      test -f android/gradle/wrapper/gradle-wrapper.properties
-
-      echo ""
-      echo "SUCCESS: Gradle wrapper is ready."
-
-  # ==========================================
-  # 13. MAKE GRADLE EXECUTABLE
-  # ==========================================
-  - name: Make gradlew executable
+  - name: Make Gradle executable
     run: chmod +x android/gradlew
 
-  # ==========================================
-  # 14. GENERATE DEBUG KEYSTORE
-  # ==========================================
-  - name: Generate Android debug keystore
+  - name: Generate debug keystore
     run: |
-      echo "======================================"
-      echo "GENERATING DEBUG KEYSTORE"
-      echo "======================================"
-
       mkdir -p android/app
+      keytool -genkeypair \
+        -v \
+        -keystore android/app/debug.keystore \
+        -storepass android \
+        -alias androiddebugkey \
+        -keypass android \
+        -keyalg RSA \
+        -keysize 2048 \
+        -validity 10000 \
+        -dname "CN=Android Debug,O=Android,C=US"
 
-      if [ ! -f android/app/debug.keystore ]; then
-        keytool -genkeypair \
-          -v \
-          -keystore android/app/debug.keystore \
-          -storepass android \
-          -alias androiddebugkey \
-          -keypass android \
-          -keyalg RSA \
-          -keysize 2048 \
-          -validity 10000 \
-          -dname "CN=Android Debug,O=Android,C=US"
-      else
-        echo "Debug keystore already exists."
-      fi
-
-      test -f android/app/debug.keystore
-
-      echo "SUCCESS: Debug keystore ready."
-
-  # ==========================================
-  # 15. CHECK GRADLE
-  # ==========================================
-  - name: Check Gradle
+  - name: Clean project
     working-directory: android
-    run: ./gradlew --version
+    run: ./gradlew clean --no-daemon
 
-  # ==========================================
-  # 16. CLEAN BUILD
-  # ==========================================
-  - name: Clean Android project
+  - name: Build APK
     working-directory: android
-    run: |
-      ./gradlew clean \
-        --no-daemon \
-        --stacktrace
+    run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-  # ==========================================
-  # 17. BUILD RELEASE APK
-  # ==========================================
-  - name: Build Release APK
-    working-directory: android
+  - name: Find APK
     run: |
-      ./gradlew assembleRelease \
-        --no-daemon \
-        --stacktrace
-
-  # ==========================================
-  # 18. FIND APK
-  # ==========================================
-  - name: Find generated APK
-    run: |
-      echo "======================================"
-      echo "GENERATED APK FILES"
-      echo "======================================"
-
       find android/app/build/outputs/apk \
         -type f \
         -name "*.apk" \
         -print
 
-  # ==========================================
-  # 19. VERIFY APK EXISTS
-  # ==========================================
-  - name: Verify APK
-    run: |
-      echo "======================================"
-      echo "VERIFYING APK"
-      echo "======================================"
-
-      APK_COUNT=$(find android/app/build/outputs/apk/release \
-        -type f \
-        -name "*.apk" | wc -l)
-
-      if [ "$APK_COUNT" -eq 0 ]; then
-        echo "ERROR: No APK was generated."
-        exit 1
-      fi
-
-      echo "SUCCESS: APK generated."
-      find android/app/build/outputs/apk/release \
-        -type f \
-        -name "*.apk" \
-        -print
-
-  # ==========================================
-  # 20. UPLOAD APK
-  # ==========================================
-  - name: Upload Destiny AI APK
+  - name: Upload APK
     uses: actions/upload-artifact@v4
     with:
       name: Destiny-AI-APK
       path: android/app/build/outputs/apk/release/*.apk
       if-no-files-found: error
-      retention-days: 30
