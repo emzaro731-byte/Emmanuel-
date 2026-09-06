@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Destiny AI Color Palette -->
+    <color name="colorPrimary">#7C5CFF</color>
+    <color name="colorPrimaryDark">#050816</color>
+    <color name="colorAccent">#9A82FF</color>
+    
+    <!-- Background Colors -->
+    <color name="background">#050816</color>
+    <color name="surface">#0B1020</color>
+    <color name="surface2">#10172B</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#9BA5C0</color>
+    
+    <!-- Chat Colors -->
+    <color name="user_message">#6D4AFF</color>
+    <color name="assistant_message">#10172B</color>
+</resources>
