@@ -39,6 +39,7 @@ import { supabase } from "./lib/supabase";
 type Screen =
   | "chat"
   | "studio"
+  | "features"
   | "settings"
   | "profile";
 
@@ -157,6 +158,7 @@ function Icon({
     back: "‹",
     more: "⋯",
     logout: "↪",
+    chevron: "›",
     image: "▧",
     mic: "◉",
     sparkle: "✦",
@@ -218,6 +220,13 @@ export default function App() {
 
   const [darkMode] = useState(true);
 
+  // CHATGPT_FEATURES_V1
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [memoryText, setMemoryText] = useState("");
+  const [canvasText, setCanvasText] = useState("");
+  const [projects, setProjects] = useState<string[]>([]);
+  const [selectedProject, setSelectedProject] = useState("");
+
   const listRef = useRef<FlatList<Message>>(null);
 
   const pulse = useRef(
@@ -258,6 +267,16 @@ export default function App() {
       if (session?.user?.email) {
         setUserEmail(session.user.email);
       }
+
+      const savedMemory = await AsyncStorage.getItem("destiny_ai_memory_v1");
+      const savedProjects = await AsyncStorage.getItem("destiny_ai_projects_v1");
+      const savedCanvas = await AsyncStorage.getItem("destiny_ai_canvas_v1");
+
+      if (savedMemory) setMemoryText(savedMemory);
+      if (savedProjects) {
+        try { setProjects(JSON.parse(savedProjects)); } catch {}
+      }
+      if (savedCanvas) setCanvasText(savedCanvas);
     } catch (error) {
       console.log("Load error:", error);
 
@@ -676,6 +695,146 @@ export default function App() {
       })
     );
   };
+
+  /* =======================================================
+     CHATGPT-STYLE TOOLS
+  ======================================================= */
+
+  const saveMemory = async (value: string) => {
+    setMemoryText(value);
+    await AsyncStorage.setItem("destiny_ai_memory_v1", value);
+  };
+
+  const saveCanvas = async () => {
+    await AsyncStorage.setItem("destiny_ai_canvas_v1", canvasText);
+    Alert.alert("Canvas saved", "Your canvas is stored on this device.");
+  };
+
+  const createProject = async () => {
+    Alert.prompt(
+      "New project",
+      "Enter a project name",
+      async (name) => {
+        const value = name?.trim();
+        if (!value) return;
+        const next = [...projects, value];
+        setProjects(next);
+        setSelectedProject(value);
+        await AsyncStorage.setItem("destiny_ai_projects_v1", JSON.stringify(next));
+      }
+    );
+  };
+
+  const chooseCustomGPT = (name: string, instructions: string) => {
+    setMessage(instructions);
+    setMode(name as ChatMode);
+    setScreen("chat");
+  };
+
+  const renderFeatures = () => (
+    <ScrollView contentContainerStyle={styles.settingsContent}>
+      <Text style={styles.pageTitle}>AI Tools</Text>
+      <Text style={styles.pageSubtitle}>ChatGPT-inspired tools for Destiny AI.</Text>
+
+      <View style={styles.settingsCard}>
+        <Text style={styles.settingsHeading}>Memory</Text>
+        <View style={styles.settingRow}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={styles.settingTitle}>Remember useful details</Text>
+            <Text style={styles.settingDescription}>Keep a local memory that can be reused in future chats.</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.toggle, !memoryEnabled && { backgroundColor: "#30384F" }]}
+            onPress={() => setMemoryEnabled((v) => !v)}
+          >
+            <View style={[styles.toggleDot, !memoryEnabled && { alignSelf: "flex-start" }]} />
+          </TouchableOpacity>
+        </View>
+        {memoryEnabled && (
+          <TextInput
+            value={memoryText}
+            onChangeText={saveMemory}
+            placeholder="Example: I prefer concise answers..."
+            placeholderTextColor="#68718A"
+            multiline
+            style={[styles.studioInput, { minHeight: 90, marginTop: 10 }]}
+          />
+        )}
+      </View>
+
+      <View style={styles.settingsCard}>
+        <Text style={styles.settingsHeading}>Projects</Text>
+        <TouchableOpacity style={styles.newChatButton} onPress={createProject}>
+          <Icon name="plus" size={20} color="#FFFFFF" />
+          <Text style={styles.newChatText}>New project</Text>
+        </TouchableOpacity>
+        {projects.map((project) => (
+          <TouchableOpacity
+            key={project}
+            style={[styles.settingRow, selectedProject === project && { backgroundColor: COLORS.surface2 }]}
+            onPress={() => setSelectedProject(project)}
+          >
+            <Text style={styles.settingTitle}>{project}</Text>
+            {selectedProject === project && <Icon name="check" size={19} color={COLORS.success} />}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.settingsCard}>
+        <Text style={styles.settingsHeading}>Canvas</Text>
+        <Text style={styles.settingDescription}>Draft, edit and refine longer text or code beside your chat.</Text>
+        <TextInput
+          value={canvasText}
+          onChangeText={setCanvasText}
+          placeholder="Start writing or paste code here..."
+          placeholderTextColor="#68718A"
+          multiline
+          style={[styles.studioInput, { minHeight: 170, marginTop: 10 }]}
+        />
+        <TouchableOpacity style={styles.uploadButton} onPress={saveCanvas}>
+          <Icon name="check" size={19} color={COLORS.text} />
+          <Text style={styles.uploadText}>Save canvas</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.settingsCard}>
+        <Text style={styles.settingsHeading}>Custom AI assistants</Text>
+        {[
+          ["Coder", "Act as an expert software engineer. Give production-ready code and explain important decisions."],
+          ["Writer", "Act as a professional editor and writer. Improve clarity, tone, structure and grammar."],
+          ["Tutor", "Act as a patient tutor. Teach step by step with examples and practice questions."],
+          ["Researcher", "Act as a careful research assistant. Separate facts from uncertainty and cite sources when available."],
+        ].map(([name, instructions]) => (
+          <TouchableOpacity key={name} style={styles.settingRow} onPress={() => chooseCustomGPT(name, instructions)}>
+            <View>
+              <Text style={styles.settingTitle}>{name}</Text>
+              <Text style={styles.settingDescription}>Use this specialist in a new chat.</Text>
+            </View>
+            <Icon name="chevron" size={18} color={COLORS.muted} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.settingsCard}>
+        <Text style={styles.settingsHeading}>Advanced capabilities</Text>
+        {[
+          ["Web Search", "Connect a web-search provider to retrieve current information."],
+          ["Deep Research", "Add a multi-step research worker with citations and source tracking."],
+          ["Files & Data Analysis", "Add native file selection and a secure analysis worker for PDFs, CSV and spreadsheets."],
+          ["Voice", "Add native speech recognition and text-to-speech for live conversations."],
+          ["Agent / Actions", "Add a permissioned action runner for external APIs and browser workflows."],
+        ].map(([name, description]) => (
+          <View key={name} style={styles.settingRow}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={styles.settingTitle}>{name}</Text>
+              <Text style={styles.settingDescription}>{description}</Text>
+            </View>
+            <Text style={{ color: COLORS.primary2, fontSize: 10, fontWeight: "700" }}>NEXT</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
 
   /* =======================================================
      LOGOUT
@@ -1828,6 +1987,10 @@ export default function App() {
       return "Studio";
     }
 
+    if (screen === "features") {
+      return "AI Tools";
+    }
+
     if (screen === "settings") {
       return "Settings";
     }
@@ -1940,6 +2103,9 @@ export default function App() {
           {screen === "studio" &&
             renderStudio()}
 
+          {screen === "features" &&
+            renderFeatures()}
+
           {screen === "settings" &&
             renderSettings()}
 
@@ -1997,6 +2163,33 @@ export default function App() {
               ]}
             >
               Studio
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() =>
+              setScreen("features")
+            }
+          >
+            <Icon
+              name="sparkle"
+              size={21}
+              color={
+                screen === "features"
+                  ? COLORS.primary2
+                  : COLORS.muted
+              }
+            />
+
+            <Text
+              style={[
+                styles.navText,
+                screen === "features" &&
+                  styles.navTextActive,
+              ]}
+            >
+              Tools
             </Text>
           </TouchableOpacity>
 
