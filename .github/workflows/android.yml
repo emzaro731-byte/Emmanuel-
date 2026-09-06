@@ -19,6 +19,7 @@ jobs:
       - name: Apply ChatGPT-style feature upgrade
         run: |
           node scripts/upgrade-chatgpt-features.mjs
+          node scripts/harden-chatgpt-features.mjs
           if ! git diff --quiet -- App.tsx; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -58,6 +59,7 @@ jobs:
           test -f app.json
           test -f lib/supabase.ts
           test -f scripts/upgrade-chatgpt-features.mjs
+          test -f scripts/harden-chatgpt-features.mjs
           test -d android/app
           echo "Project structure verified"
 
