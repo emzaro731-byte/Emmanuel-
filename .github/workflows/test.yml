@@ -1,4 +1,4 @@
-name: Destiny AI Test
+name: Destiny AI Android Build
 
 on:
 workflow_dispatch:
@@ -6,27 +6,98 @@ push:
 branches:
 - main
 
+permissions:
+contents: read
+
 jobs:
-test:
-name: Test GitHub Actions
+build:
 runs-on: ubuntu-latest
 
 steps:
-  - name: Test
+  - name: Checkout
+    uses: actions/checkout@v4
+
+  - name: Setup Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: "17"
+
+  - name: Setup Node
+    uses: actions/setup-node@v4
+    with:
+      node-version: "20"
+      cache: npm
+
+  - name: Setup Android
+    uses: android-actions/setup-android@v3
+
+  - name: Install Android SDK
     run: |
-      echo "================================"
-      echo "DESTINY AI WORKFLOW IS WORKING"
-      echo "================================"
-      echo "Job: $GITHUB_JOB"
-      echo "Runner: $RUNNER_OS"
-      echo "Repository: $GITHUB_REPOSITORY"
-      echo "Branch: $GITHUB_REF_NAME"
+      yes | sdkmanager --licenses || true
+      sdkmanager "platform-tools"
+      sdkmanager "platforms;android-35"
+      sdkmanager "build-tools;35.0.0"
 
-  - name: Check Node
-    run: node --version
+  - name: Install dependencies
+    run: npm install
 
-  - name: Check Java
-    run: java -version
+  - name: Verify files
+    run: |
+      test -f package.json
+      test -f App.tsx
+      test -f index.js
+      test -f app.json
+      test -f lib/supabase.ts
 
-  - name: Finish
-    run: echo "SUCCESS - GitHub Actions is working!"
+  - name: Setup Gradle
+    uses: gradle/actions/setup-gradle@v4
+    with:
+      gradle-version: "8.13"
+
+  - name: Generate Gradle wrapper
+    working-directory: android
+    run: |
+      gradle wrapper \
+        --gradle-version 8.13 \
+        --distribution-type bin
+
+  - name: Make Gradle executable
+    run: chmod +x android/gradlew
+
+  - name: Generate debug keystore
+    run: |
+      mkdir -p android/app
+
+      keytool -genkeypair \
+        -v \
+        -keystore android/app/debug.keystore \
+        -storepass android \
+        -alias androiddebugkey \
+        -keypass android \
+        -keyalg RSA \
+        -keysize 2048 \
+        -validity 10000 \
+        -dname "CN=Android Debug,O=Android,C=US"
+
+  - name: Clean
+    working-directory: android
+    run: ./gradlew clean --no-daemon
+
+  - name: Build APK
+    working-directory: android
+    run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+  - name: Find APK
+    run: |
+      find android/app/build/outputs/apk \
+        -type f \
+        -name "*.apk" \
+        -print
+
+  - name: Upload APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: Destiny-AI-APK
+      path: android/app/build/outputs/apk/release/*.apk
+      if-no-files-found: error
