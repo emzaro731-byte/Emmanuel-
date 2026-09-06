@@ -38,42 +38,45 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Check project structure
+      - name: Verify project structure
         run: |
-          test -f package.json || exit 1
-          test -f App.tsx || exit 1
-          test -f index.js || exit 1
-          test -f app.json || exit 1
-          test -f lib/supabase.ts || exit 1
-          test -d android || exit 1
-          test -d android/app || exit 1
-          echo "✓ Project structure verified"
+          test -f package.json
+          test -f App.tsx
+          test -f index.js
+          test -f app.json
+          test -f lib/supabase.ts
+          test -d android/app
+          echo "Project structure verified"
 
-      - name: Setup Gradle wrapper
+      - name: Setup Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: Generate Gradle wrapper
         working-directory: android
         run: |
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.13 --distribution-type bin
-          fi
+          gradle wrapper --gradle-version 8.13 --distribution-type bin
           chmod +x gradlew
-          echo "✓ Gradle wrapper ready"
+          ./gradlew --version
 
       - name: Create debug keystore
         run: |
           mkdir -p android/app
-          keytool -genkeypair \
-            -v \
-            -keystore android/app/debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US" || true
-          echo "✓ Debug keystore created"
+          if [ ! -f android/app/debug.keystore ]; then
+            keytool -genkeypair \
+              -v \
+              -keystore android/app/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
 
       - name: Clean build
         working-directory: android
@@ -85,13 +88,9 @@ jobs:
 
       - name: Verify APK
         run: |
-          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            ls -lh android/app/build/outputs/apk/release/app-release.apk
-            echo "✓ APK built successfully"
-          else
-            echo "✗ APK not found"
-            exit 1
-          fi
+          test -f android/app/build/outputs/apk/release/app-release.apk
+          ls -lh android/app/build/outputs/apk/release/app-release.apk
+          echo "APK built successfully"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
