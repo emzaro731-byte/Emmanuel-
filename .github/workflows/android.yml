@@ -1,97 +1,102 @@
 name: Destiny AI Android
 
 on:
-push:
-branches:
-- main
-workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
-contents: read
+  contents: read
 
 jobs:
-android:
-runs-on: ubuntu-latest
+  android:
+    runs-on: ubuntu-latest
 
-steps:
-  - name: Checkout
-    uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  - name: Setup Java 17
-    uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: "17"
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-  - name: Setup Node 20
-    uses: actions/setup-node@v4
-    with:
-      node-version: "20"
-      cache: npm
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
 
-  - name: Setup Android
-    uses: android-actions/setup-android@v3
+      - name: Setup Android
+        uses: android-actions/setup-android@v3
 
-  - name: Install Android SDK
-    run: |
-      yes | sdkmanager --licenses || true
-      sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-  - name: Install dependencies
-    run: npm install
+      - name: Install dependencies
+        run: npm install
 
-  - name: Check project
-    run: |
-      test -f package.json
-      test -f App.tsx
-      test -f index.js
-      test -f app.json
-      test -f lib/supabase.ts
-      test -d android
-      echo "Project OK"
+      - name: Check project structure
+        run: |
+          test -f package.json || exit 1
+          test -f App.tsx || exit 1
+          test -f index.js || exit 1
+          test -f app.json || exit 1
+          test -f lib/supabase.ts || exit 1
+          test -d android || exit 1
+          test -d android/app || exit 1
+          echo "✓ Project structure verified"
 
-  - name: Setup Gradle 8.13
-    uses: gradle/actions/setup-gradle@v4
-    with:
-      gradle-version: "8.13"
+      - name: Setup Gradle wrapper
+        working-directory: android
+        run: |
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.13 --distribution-type bin
+          fi
+          chmod +x gradlew
+          echo "✓ Gradle wrapper ready"
 
-  - name: Generate Gradle wrapper
-    working-directory: android
-    run: |
-      gradle wrapper \
-        --gradle-version 8.13 \
-        --distribution-type bin
+      - name: Create debug keystore
+        run: |
+          mkdir -p android/app
+          keytool -genkeypair \
+            -v \
+            -keystore android/app/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" || true
+          echo "✓ Debug keystore created"
 
-  - name: Make Gradle executable
-    run: chmod +x android/gradlew
+      - name: Clean build
+        working-directory: android
+        run: ./gradlew clean --no-daemon
 
-  - name: Create debug keystore
-    run: |
-      mkdir -p android/app
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      keytool -genkeypair \
-        -v \
-        -keystore android/app/debug.keystore \
-        -storepass android \
-        -alias androiddebugkey \
-        -keypass android \
-        -keyalg RSA \
-        -keysize 2048 \
-        -validity 10000 \
-        -dname "CN=Android Debug,O=Android,C=US"
+      - name: Verify APK
+        run: |
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            ls -lh android/app/build/outputs/apk/release/app-release.apk
+            echo "✓ APK built successfully"
+          else
+            echo "✗ APK not found"
+            exit 1
+          fi
 
-  - name: Clean
-    working-directory: android
-    run: ./gradlew clean --no-daemon
-
-  - name: Build APK
-    working-directory: android
-    run: ./gradlew assembleRelease --no-daemon --stacktrace
-
-  - name: Upload APK
-    uses: actions/upload-artifact@v4
-    with:
-      name: Destiny-AI-APK
-      path: android/app/build/outputs/apk/release/*.apk
-      if-no-files-found: error
-      retention-days: 30
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Destiny-AI-APK
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
