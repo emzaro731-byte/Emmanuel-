@@ -1,0 +1,32 @@
+name: Destiny AI Test
+
+on:
+workflow_dispatch:
+push:
+branches:
+- main
+
+jobs:
+test:
+name: Test GitHub Actions
+runs-on: ubuntu-latest
+
+steps:
+  - name: Test
+    run: |
+      echo "================================"
+      echo "DESTINY AI WORKFLOW IS WORKING"
+      echo "================================"
+      echo "Job: $GITHUB_JOB"
+      echo "Runner: $RUNNER_OS"
+      echo "Repository: $GITHUB_REPOSITORY"
+      echo "Branch: $GITHUB_REF_NAME"
+
+  - name: Check Node
+    run: node --version
+
+  - name: Check Java
+    run: java -version
+
+  - name: Finish
+    run: echo "SUCCESS - GitHub Actions is working!"
