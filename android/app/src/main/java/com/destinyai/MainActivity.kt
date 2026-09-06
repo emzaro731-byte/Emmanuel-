@@ -7,7 +7,8 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
 
-    override fun getMainComponentName(): String = "DestinyAI"
+    // Must match the root component registered by Expo in index.js.
+    override fun getMainComponentName(): String = "main"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(null)
