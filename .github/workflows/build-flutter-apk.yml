@@ -57,7 +57,6 @@ jobs:
           main = Path('lib/main.dart')
           source = main.read_text(encoding='utf-8')
 
-          # Replace the legacy embedded ChatPage with the standalone Liquid Glass implementation.
           source, removed = re.subn(
               r'class ChatPage extends StatefulWidget\s*\{.*?\nclass ProfilePage extends StatefulWidget\s*\{',
               'class ProfilePage extends StatefulWidget {',
@@ -75,7 +74,6 @@ jobs:
                   1,
               )
 
-          # main.dart still uses SharedPreferences for SettingsPage.
           if "import 'package:shared_preferences/shared_preferences.dart';" not in source:
               source = source.replace(
                   "import 'package:flutter/material.dart';",
@@ -85,14 +83,12 @@ jobs:
           source = source.replace("import 'dart:convert';\n", '')
           source = source.replace("import 'package:image_picker/image_picker.dart';\n", '')
 
-          # Repair ConfigScreen nesting: Scaffold -> Center -> Padding -> Column.
           source = source.replace(
               "        ])),\n      );\n}\n\nclass AuthGate",
               "        ]))),\n      );\n}\n\nclass AuthGate",
               1,
           )
 
-          # Repair LoginScreen nesting: Scaffold -> SafeArea -> Center -> ScrollView -> ConstrainedBox -> Column.
           login_pattern = re.compile(
               r"(class _LoginState extends State<LoginScreen>.*?@override\s+Widget build\(BuildContext context\) => Scaffold\(.*?children: \[.*?)(\n        \]\)+,\n      \);\n}\n\nclass HomeScreen)",
               re.S,
@@ -100,12 +96,13 @@ jobs:
           match = login_pattern.search(source)
           if not match:
               raise SystemExit('Could not locate LoginScreen build block')
-          login_block = match.group(1) + "\n        ])))),\n      );\n}\n\nclass HomeScreen"
+          login_block = match.group(1) + "\n        ])))),),\n      );\n}\n\nclass HomeScreen"
+          # Normalize the generated closing sequence to: ] + five closing parentheses + comma.
+          login_block = login_block.replace(" ])))),),", " ]))))),")
           source = source[:match.start()] + login_block + source[match.end():]
 
           main.write_text(source, encoding='utf-8')
 
-          # Repair the known Liquid Glass Media Studio closing structure using a semantic anchor.
           media = Path('lib/screens/media_studio_page.dart')
           media_source = media.read_text(encoding='utf-8')
           anchor = "Provider credentials stay server-side and are never shipped inside the APK."
@@ -113,15 +110,18 @@ jobs:
           if pos < 0:
               raise SystemExit('Could not locate Media Studio privacy card')
           tail = media_source[pos:]
-          tail_fixed, count = re.subn(r"\n\s*\]\)\),\n\s*\]\)\),\n\s*\),\n\s*\]\)\),", "\n              ]))),\n            ])),\n          ),\n        ])),", tail, count=1)
+          tail_fixed, count = re.subn(
+              r"\n\s*\]\)\),\n\s*\]\)\),\n\s*\),\n\s*\]\)\),",
+              "\n              ]))),\n            ])),\n          ),\n        ])),",
+              tail,
+              count=1,
+          )
           if count == 1:
-              media_source = media_source[:pos] + tail_fixed
-              media.write_text(media_source, encoding='utf-8')
+              media.write_text(media_source[:pos] + tail_fixed, encoding='utf-8')
               print('Repaired Media Studio privacy-card closing structure.')
           else:
               print('Media Studio privacy-card structure already repaired.')
 
-          # Remove the stale generated test that references package:destinyai/MyApp.
           test_file = Path('test/widget_test.dart')
           if test_file.exists():
               test_file.unlink()
