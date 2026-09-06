@@ -12,6 +12,14 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
+const MODELS = {
+  image: "fal-ai/flux/schnell",
+  video: "fal-ai/kling-video/v2.6/pro/text-to-video",
+  music: "fal-ai/minimax-music/v2.5",
+} as const;
+
+type MediaAction = keyof typeof MODELS;
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
@@ -33,10 +41,26 @@ serve(async (req) => {
     if (error || !user) return json({ error: "Invalid or expired session." }, 401);
 
     const body = await req.json();
-    const model = typeof body?.model === "string" && body.model.trim() ? body.model.trim().slice(0, 160) : "fal-ai/flux/schnell";
-    const input = body?.input && typeof body.input === "object" ? body.input : {};
-    const prompt = typeof input.prompt === "string" ? input.prompt.trim().slice(0, 6000) : "";
+    const action = body?.action as MediaAction;
+    if (!(action in MODELS)) return json({ error: "Unsupported media action. Use image, video, or music." }, 400);
+
+    const requestedModel = typeof body?.model === "string" ? body.model.trim() : "";
+    const model = requestedModel || MODELS[action];
+    if (model !== MODELS[action]) return json({ error: "The selected model is not allowed for this media type." }, 400);
+
+    const rawInput = body?.input && typeof body.input === "object" ? body.input : {};
+    const input = { ...rawInput } as Record<string, unknown>;
+    const prompt = typeof input.prompt === "string" ? input.prompt.trim().slice(0, action === "music" ? 2000 : 6000) : "";
     if (!prompt) return json({ error: "A prompt is required." }, 400);
+    input.prompt = prompt;
+
+    if (action === "music") {
+      if (typeof input.lyrics === "string") input.lyrics = input.lyrics.slice(0, 3500);
+      if (typeof input.is_instrumental !== "boolean") input.is_instrumental = false;
+      if (typeof input.lyrics_optimizer !== "boolean") input.lyrics_optimizer = !input.is_instrumental && !(input.lyrics as string);
+    }
+
+    if (action === "video" && typeof input.sound !== "boolean") input.sound = false;
 
     const providerResponse = await fetch(`https://fal.run/${model}`, {
       method: "POST",
@@ -45,14 +69,26 @@ serve(async (req) => {
         "Content-Type": "application/json",
         "X-Fal-Store-IO": "0",
       },
-      body: JSON.stringify({ ...input, prompt }),
+      body: JSON.stringify(input),
     });
 
     const text = await providerResponse.text();
     let result: any;
     try { result = JSON.parse(text); } catch { result = { raw: text }; }
-    if (!providerResponse.ok) return json({ error: result?.detail || result?.message || `Media provider returned HTTP ${providerResponse.status}.` }, providerResponse.status);
-    return json({ success: true, provider: "fal", model, result, user_id: user.id });
+    if (!providerResponse.ok) {
+      return json({
+        error: result?.detail || result?.message || `Media provider returned HTTP ${providerResponse.status}.`,
+      }, providerResponse.status);
+    }
+
+    return json({
+      success: true,
+      provider: "fal",
+      action,
+      model,
+      result,
+      user_id: user.id,
+    });
   } catch (error) {
     console.error("Media provider function error:", error);
     return json({ error: error instanceof Error ? error.message : "Unexpected server error." }, 500);
