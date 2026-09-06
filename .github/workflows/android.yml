@@ -1,114 +1,48 @@
-name: Destiny AI Android
+name: Destiny AI Clean APK Build
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  android:
+  build-android:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Apply ChatGPT-style feature upgrade
-        run: |
-          node scripts/upgrade-chatgpt-features.mjs
-          node scripts/harden-chatgpt-features.mjs
-          if ! git diff --quiet -- App.tsx; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add App.tsx
-            git commit -m "Add ChatGPT-style AI tools"
-            git push
-          fi
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: npm
 
-      - name: Setup Android
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Verify project structure
+      - name: Validate Expo project
         run: |
-          test -f package.json
-          test -f App.tsx
-          test -f index.js
-          test -f app.json
-          test -f lib/supabase.ts
-          test -f scripts/upgrade-chatgpt-features.mjs
-          test -f scripts/harden-chatgpt-features.mjs
-          test -d android/app
-          echo "Project structure verified"
+          npx expo install --fix --non-interactive || true
+          npx expo-doctor || true
 
-      - name: Setup Gradle 8.13
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.13"
+      - name: Remove old generated Android project
+        run: rm -rf android
 
-      - name: Generate Gradle wrapper
-        working-directory: android
-        run: |
-          gradle wrapper --gradle-version 8.13 --distribution-type bin
-          chmod +x gradlew
-          ./gradlew --version
-
-      - name: Create debug keystore
-        run: |
-          mkdir -p android/app
-          if [ ! -f android/app/debug.keystore ]; then
-            keytool -genkeypair \
-              -v \
-              -keystore android/app/debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-
-      - name: Clean build
-        working-directory: android
-        run: ./gradlew clean --no-daemon
+      - name: Generate fresh Android project
+        run: npx expo prebuild --platform android --clean --non-interactive
 
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
-
-      - name: Verify APK
         run: |
-          test -f android/app/build/outputs/apk/release/app-release.apk
-          ls -lh android/app/build/outputs/apk/release/app-release.apk
-          echo "APK built successfully"
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Upload APK artifact
+      - name: Upload Destiny AI APK
         uses: actions/upload-artifact@v4
         with:
-          name: Destiny-AI-APK
-          path: android/app/build/outputs/apk/release/*.apk
+          name: Destiny-AI-Clean-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
