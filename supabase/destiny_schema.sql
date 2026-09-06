@@ -29,8 +29,10 @@ create policy "Users can update own profile" on public.destiny_profiles for upda
 
 drop policy if exists "Users can view own messages" on public.destiny_chat_messages;
 drop policy if exists "Users can insert own messages" on public.destiny_chat_messages;
+drop policy if exists "Users can delete own messages" on public.destiny_chat_messages;
 create policy "Users can view own messages" on public.destiny_chat_messages for select using (auth.uid() = user_id);
 create policy "Users can insert own messages" on public.destiny_chat_messages for insert with check (auth.uid() = user_id);
+create policy "Users can delete own messages" on public.destiny_chat_messages for delete using (auth.uid() = user_id);
 
 create or replace function public.handle_new_destiny_user()
 returns trigger
