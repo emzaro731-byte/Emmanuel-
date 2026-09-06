@@ -45,9 +45,6 @@ jobs:
             sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' "$MANIFEST"
           fi
 
-          echo "Application ID:"
-          grep -R 'applicationId' android/app/build.gradle* || true
-
       - name: Install dependencies
         run: flutter pub get
 
@@ -60,16 +57,16 @@ jobs:
           main = Path('lib/main.dart')
           source = main.read_text(encoding='utf-8')
 
-          # Use the standalone premium ChatPage implementation.
+          # Replace the legacy embedded ChatPage with the standalone Liquid Glass implementation.
           source, removed = re.subn(
-              r'class ChatPage extends StatefulWidget \{.*?\nclass ProfilePage extends StatefulWidget \{',
+              r'class ChatPage extends StatefulWidget\s*\{.*?\nclass ProfilePage extends StatefulWidget\s*\{',
               'class ProfilePage extends StatefulWidget {',
               source,
               count=1,
               flags=re.S,
           )
           if removed != 1:
-              raise SystemExit('Could not remove the old embedded ChatPage from main.dart')
+              raise SystemExit('Could not remove the legacy embedded ChatPage from main.dart')
 
           if "import 'screens/chat_page.dart';" not in source:
               source = source.replace(
@@ -78,38 +75,53 @@ jobs:
                   1,
               )
 
+          # main.dart still uses SharedPreferences for SettingsPage.
+          if "import 'package:shared_preferences/shared_preferences.dart';" not in source:
+              source = source.replace(
+                  "import 'package:flutter/material.dart';",
+                  "import 'package:flutter/material.dart';\nimport 'package:shared_preferences/shared_preferences.dart';",
+                  1,
+              )
+          source = source.replace("import 'dart:convert';\n", '')
           source = source.replace("import 'package:image_picker/image_picker.dart';\n", '')
-          source = source.replace("import 'package:shared_preferences/shared_preferences.dart';\n", '')
 
-          # ConfigScreen: Column + Padding + Center require three closing parens.
+          # Repair ConfigScreen nesting: Scaffold -> Center -> Padding -> Column.
           source = source.replace(
               "        ])),\n      );\n}\n\nclass AuthGate",
               "        ]))),\n      );\n}\n\nclass AuthGate",
               1,
           )
 
-          # LoginScreen: Column + ConstrainedBox + SingleChildScrollView + Center + SafeArea.
-          source = source.replace(
-              "        ])))),\n      );\n}\n\nclass HomeScreen",
-              "        ]))),\n      );\n}\n\nclass HomeScreen",
-              1,
+          # Repair LoginScreen nesting: Scaffold -> SafeArea -> Center -> ScrollView -> ConstrainedBox -> Column.
+          login_pattern = re.compile(
+              r"(class _LoginState extends State<LoginScreen>.*?@override\s+Widget build\(BuildContext context\) => Scaffold\(.*?children: \[.*?)(\n        \]\)+,\n      \);\n}\n\nclass HomeScreen)",
+              re.S,
           )
+          match = login_pattern.search(source)
+          if not match:
+              raise SystemExit('Could not locate LoginScreen build block')
+          login_block = match.group(1) + "\n        ])))),\n      );\n}\n\nclass HomeScreen"
+          source = source[:match.start()] + login_block + source[match.end():]
 
           main.write_text(source, encoding='utf-8')
 
-          # Repair the known Liquid Glass Media Studio SliverList closing structure.
+          # Repair the known Liquid Glass Media Studio closing structure using a semantic anchor.
           media = Path('lib/screens/media_studio_page.dart')
           media_source = media.read_text(encoding='utf-8')
-          broken = "            ])),\n          ),\n        ])),"
-          fixed = "            ]))),\n          ),\n        ])),"
-          if broken in media_source:
-              media_source = media_source.replace(broken, fixed, 1)
+          anchor = "Provider credentials stay server-side and are never shipped inside the APK."
+          pos = media_source.find(anchor)
+          if pos < 0:
+              raise SystemExit('Could not locate Media Studio privacy card')
+          tail = media_source[pos:]
+          tail_fixed, count = re.subn(r"\n\s*\]\)\),\n\s*\]\)\),\n\s*\),\n\s*\]\)\),", "\n              ]))),\n            ])),\n          ),\n        ])),", tail, count=1)
+          if count == 1:
+              media_source = media_source[:pos] + tail_fixed
               media.write_text(media_source, encoding='utf-8')
-              print('Repaired Media Studio SliverList closing parenthesis.')
+              print('Repaired Media Studio privacy-card closing structure.')
           else:
-              print('Media Studio structure already repaired or pattern not present.')
+              print('Media Studio privacy-card structure already repaired.')
 
-          # Remove Flutter's stale generated test that references package:destinyai/MyApp.
+          # Remove the stale generated test that references package:destinyai/MyApp.
           test_file = Path('test/widget_test.dart')
           if test_file.exists():
               test_file.unlink()
@@ -117,6 +129,9 @@ jobs:
 
           print('Flutter source repair completed successfully.')
           PY
+
+      - name: Format repaired Dart source
+        run: dart format lib
 
       - name: Static analysis
         run: flutter analyze
