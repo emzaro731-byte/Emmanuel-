@@ -1,6 +1,13 @@
 name: Destiny AI Android Build
 
 on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+name: Destiny AI Android Build
+
+on:
 workflow_dispatch:
 push:
 branches:
