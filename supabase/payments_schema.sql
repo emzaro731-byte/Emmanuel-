@@ -26,7 +26,6 @@ create index if not exists destiny_payments_reference_idx
 
 alter table public.destiny_payments enable row level security;
 
--- Remove broad/default policies before recreating the owner-only read policy.
 drop policy if exists "Users can view own payments" on public.destiny_payments;
 drop policy if exists "Users can insert own payments" on public.destiny_payments;
 drop policy if exists "Users can update own payments" on public.destiny_payments;
@@ -44,5 +43,3 @@ create policy "Users can view own payments"
 revoke all on table public.destiny_payments from anon;
 revoke all on table public.destiny_payments from authenticated;
 grant select on table public.destiny_payments to authenticated;
-
-after schema migration, the Edge Function uses its server-side secret key to create/update records.
