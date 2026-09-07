@@ -23,14 +23,20 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate Android project
-        run: flutter create --platforms=android --org com.destinyai .
+      - name: Flutter version
+        run: flutter --version
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Analyze
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib
+
+      - name: Static analysis
         run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
 
       - name: Build release APK
         run: flutter build apk --release
@@ -40,3 +46,4 @@ jobs:
         with:
           name: destiny-ai-flutter-apk
           path: flutter/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
