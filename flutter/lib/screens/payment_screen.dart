@@ -17,9 +17,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
       await PaymentService.instance.startPayment(amount: amount, plan: plan);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Complete payment securely in the checkout window.')),
+          SnackBar(
+            content: Text(
+              plan == 'premium'
+                  ? 'Opening Premium checkout...'
+                  : 'Complete payment securely in the checkout window.',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -34,13 +38,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Widget _plan(String name, int price, String description) {
+    final isPremium = name.toLowerCase() == 'premium';
+
     return Card(
       child: ListTile(
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: Text(description),
         trailing: FilledButton(
           onPressed: _loading ? null : () => _pay(price, name.toLowerCase()),
-          child: Text('₦$price'),
+          child: Text(isPremium ? 'Premium' : '₦$price'),
         ),
       ),
     );
@@ -54,8 +63,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Text('Choose your plan',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text(
+              'Choose your plan',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 20),
             _plan('Basic', 500, 'Access premium features'),
             _plan('Pro', 1000, 'More AI usage and features'),
