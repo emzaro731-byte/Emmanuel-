@@ -10,11 +10,13 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Content-Type": "application/json",
 };
 
 function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
 function text(value: unknown, max = 12000): string {
@@ -40,6 +42,7 @@ Core behavior:
 - Understand conversation context and relevant memory/project context.
 - Help with programming, mathematics, science, writing, business, education, technology and creative work.
 - For code, provide complete practical solutions and important implementation details.
+- When an image is attached, inspect it carefully and answer questions about visible content without inventing details.
 - Never claim to have performed an action you did not perform.
 - Never invent sources, facts, links, tool results or capabilities.
 - If information may be outdated or uncertain, say so clearly.
@@ -48,17 +51,70 @@ Core behavior:
 - You are Destiny AI, not ChatGPT. Do not claim to be OpenAI or ChatGPT.
 `;
 
+type ChatTextPart = { type: "text"; text: string };
+type ChatImagePart = { type: "image_url"; image_url: { url: string } };
+type ChatContent = string | Array<ChatTextPart | ChatImagePart>;
+type CleanMessage = { role: "user" | "assistant"; content: ChatContent };
+
+function sanitizeContent(content: unknown): ChatContent | null {
+  if (typeof content === "string") return content.slice(0, 24000);
+  if (!Array.isArray(content)) return null;
+
+  const parts: Array<ChatTextPart | ChatImagePart> = [];
+  for (const part of content.slice(0, 8)) {
+    if (!part || typeof part !== "object") continue;
+    const type = (part as any).type;
+    if (type === "text" && typeof (part as any).text === "string") {
+      parts.push({ type: "text", text: (part as any).text.slice(0, 24000) });
+    } else if (type === "image_url" && typeof (part as any).image_url?.url === "string") {
+      const url = (part as any).image_url.url;
+      if (url.startsWith("https://") || url.startsWith("data:image/")) {
+        parts.push({ type: "image_url", image_url: { url } });
+      }
+    }
+  }
+  return parts.length ? parts : null;
+}
+
+function sseResponse(upstream: Response) {
+  const reader = upstream.body?.getReader();
+  if (!reader) return jsonResponse({ error: "Streaming response body was unavailable." }, 502);
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          controller.enqueue(value);
+        }
+      } catch (error) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : "Stream failed." })}\n\n`));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    status: upstream.status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+    },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { status: 200, headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Only POST requests are supported." }, 405);
 
   const authorization = req.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return jsonResponse({ error: "Authentication required." }, 401);
-  }
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return jsonResponse({ error: "Supabase authentication is not configured." }, 500);
-  }
+  if (!authorization?.startsWith("Bearer ")) return jsonResponse({ error: "Authentication required." }, 401);
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return jsonResponse({ error: "Supabase authentication is not configured." }, 500);
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -66,21 +122,20 @@ serve(async (req) => {
     });
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return jsonResponse({ error: "Invalid or expired session." }, 401);
-
-    if (!GROQ_API_KEY) {
-      return jsonResponse({ error: "GROQ_API_KEY is not configured in Supabase Function Secrets." }, 500);
-    }
+    if (!GROQ_API_KEY) return jsonResponse({ error: "GROQ_API_KEY is not configured in Supabase Function Secrets." }, 500);
 
     const body = await req.json();
-    let messages = Array.isArray(body?.messages) ? body.messages : [];
+    let messages: any[] = Array.isArray(body?.messages) ? body.messages : [];
     if (messages.length === 0 && typeof body?.message === "string" && body.message.trim()) {
       messages = [{ role: "user", content: body.message.trim() }];
     }
     if (messages.length === 0) return jsonResponse({ error: "No messages were provided." }, 400);
 
-    const cleanMessages = messages
-      .filter((m: any) => m && ["user", "assistant"].includes(m.role) && typeof m.content === "string")
-      .map((m: any) => ({ role: m.role, content: m.content.slice(0, 24000) }));
+    const cleanMessages: CleanMessage[] = messages
+      .filter((m: any) => m && ["user", "assistant"].includes(m.role))
+      .map((m: any) => ({ role: m.role, content: sanitizeContent(m.content) }))
+      .filter((m: CleanMessage) => m.content !== null) as CleanMessage[];
+
     if (!cleanMessages.length) return jsonResponse({ error: "No valid messages were provided." }, 400);
 
     const recentMessages = cleanMessages.slice(-80);
@@ -100,6 +155,7 @@ serve(async (req) => {
     const temperature = typeof body?.temperature === "number" ? Math.min(Math.max(body.temperature, 0), 2) : 0.7;
     const maxTokens = typeof body?.max_tokens === "number" ? Math.min(Math.max(body.max_tokens, 256), 16384) : 8192;
     const reasoningEffort = ["low", "medium", "high"].includes(body?.reasoning_effort) ? body.reasoning_effort : "medium";
+    const stream = body?.stream === true;
 
     const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -110,18 +166,21 @@ serve(async (req) => {
         temperature,
         max_tokens: maxTokens,
         reasoning_effort: reasoningEffort,
-        stream: false,
+        stream,
       }),
     });
 
-    const responseText = await groqResponse.text();
-    let groqData: any;
-    try { groqData = JSON.parse(responseText); } catch { groqData = { error: { message: responseText } }; }
     if (!groqResponse.ok) {
+      const responseText = await groqResponse.text();
+      let groqData: any;
+      try { groqData = JSON.parse(responseText); } catch { groqData = { error: { message: responseText } }; }
       console.error("Groq API error:", groqResponse.status, groqData);
       return jsonResponse({ error: groqData?.error?.message || `Groq API returned HTTP ${groqResponse.status}.`, status: groqResponse.status }, groqResponse.status);
     }
 
+    if (stream) return sseResponse(groqResponse);
+
+    const groqData = await groqResponse.json();
     const assistantMessage = groqData?.choices?.[0]?.message?.content ?? "";
     if (!assistantMessage) return jsonResponse({ error: "The AI returned an empty response." }, 502);
 
