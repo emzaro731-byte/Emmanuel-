@@ -29,7 +29,8 @@ class MediaService {
         : <String, dynamic>{};
 
     if (response.status >= 400 || data['error'] != null) {
-      throw Exception(data['error'] ?? 'Media generation failed (${response.status}).');
+      throw Exception(
+          data['error'] ?? 'Media generation failed (${response.status}).');
     }
     return data;
   }
@@ -91,7 +92,9 @@ class MediaService {
     final result = data['result'];
     if (result is Map) {
       final video = result['video'];
-      if (video is Map && video['url'] is String && (video['url'] as String).isNotEmpty) {
+      if (video is Map &&
+          video['url'] is String &&
+          (video['url'] as String).isNotEmpty) {
         return video['url'] as String;
       }
       if (video is String && video.isNotEmpty) return video;
@@ -103,7 +106,9 @@ class MediaService {
     final result = data['result'];
     if (result is Map) {
       final audio = result['audio'];
-      if (audio is Map && audio['url'] is String && (audio['url'] as String).isNotEmpty) {
+      if (audio is Map &&
+          audio['url'] is String &&
+          (audio['url'] as String).isNotEmpty) {
         return audio['url'] as String;
       }
       if (audio is String && audio.isNotEmpty) return audio;

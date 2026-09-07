@@ -85,10 +85,8 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _saveLocalHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final values = _messages
-          .take(80)
-          .map((m) => '${m['role']}|${m['text']}')
-          .toList();
+      final values =
+          _messages.take(80).map((m) => '${m['role']}|${m['text']}').toList();
       await prefs.setStringList('destiny_chat_history', values);
     } catch (_) {}
   }
@@ -149,7 +147,9 @@ class _ChatPageState extends State<ChatPage> {
       if (response.status >= 400 || data['error'] != null) {
         throw Exception(data['error'] ?? 'Destiny AI returned an error.');
       }
-      final answer = '${data['response'] ?? data['answer'] ?? data['message'] ?? ''}'.trim();
+      final answer =
+          '${data['response'] ?? data['answer'] ?? data['message'] ?? ''}'
+              .trim();
       if (answer.isEmpty) throw Exception('No response was returned.');
       if (!mounted) return;
       setState(() => _messages.add({'role': 'assistant', 'text': answer}));
@@ -159,7 +159,8 @@ class _ChatPageState extends State<ChatPage> {
       if (!mounted) return;
       setState(() => _messages.add({
             'role': 'assistant',
-            'text': 'Sorry, I could not complete that request. Please try again.\n\n$e',
+            'text':
+                'Sorry, I could not complete that request. Please try again.\n\n$e',
           }));
     } finally {
       if (mounted) {
@@ -204,12 +205,20 @@ class _ChatPageState extends State<ChatPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Choose an AI mode', style: TextStyle(color: _chatText, fontSize: 20, fontWeight: FontWeight.w800)),
+            const Text('Choose an AI mode',
+                style: TextStyle(
+                    color: _chatText,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800)),
             const SizedBox(height: 14),
             for (final mode in modes)
               ListTile(
-                leading: Icon(_mode == mode ? Icons.check_circle : Icons.circle_outlined, color: _mode == mode ? _chatGold : _chatMuted),
-                title: Text(mode, style: const TextStyle(color: _chatText, fontWeight: FontWeight.w600)),
+                leading: Icon(
+                    _mode == mode ? Icons.check_circle : Icons.circle_outlined,
+                    color: _mode == mode ? _chatGold : _chatMuted),
+                title: Text(mode,
+                    style: const TextStyle(
+                        color: _chatText, fontWeight: FontWeight.w600)),
                 onTap: () {
                   setState(() => _mode = mode);
                   Navigator.pop(context);
@@ -256,8 +265,13 @@ class _ChatPageState extends State<ChatPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Destiny AI', style: TextStyle(color: _chatText, fontSize: 18, fontWeight: FontWeight.w800)),
-                Text('Your intelligent companion', style: TextStyle(color: _chatMuted, fontSize: 12)),
+                Text('Destiny AI',
+                    style: TextStyle(
+                        color: _chatText,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800)),
+                Text('Your intelligent companion',
+                    style: TextStyle(color: _chatMuted, fontSize: 12)),
               ],
             ),
           ),
@@ -271,7 +285,8 @@ class _ChatPageState extends State<ChatPage> {
               builder: (_) => _GlassSheet(
                 child: ListTile(
                   leading: const Icon(Icons.delete_outline, color: _chatText),
-                  title: const Text('Clear chat history', style: TextStyle(color: _chatText)),
+                  title: const Text('Clear chat history',
+                      style: TextStyle(color: _chatText)),
                   onTap: () {
                     Navigator.pop(context);
                     _clearChat();
@@ -293,9 +308,18 @@ class _ChatPageState extends State<ChatPage> {
           const SizedBox(height: 30),
           Center(child: _HeroOrb()),
           const SizedBox(height: 24),
-          const Center(child: Text('Hi, I’m Destiny ✨', style: TextStyle(color: _chatText, fontSize: 28, fontWeight: FontWeight.w800))),
+          const Center(
+              child: Text('Hi, I’m Destiny ✨',
+                  style: TextStyle(
+                      color: _chatText,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800))),
           const SizedBox(height: 10),
-          const Center(child: Text('Ask me anything, create ideas, write code,\nor turn your imagination into media.', textAlign: TextAlign.center, style: TextStyle(color: _chatMuted, height: 1.5))),
+          const Center(
+              child: Text(
+                  'Ask me anything, create ideas, write code,\nor turn your imagination into media.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _chatMuted, height: 1.5))),
           const SizedBox(height: 28),
           ...[
             'Explain something to me simply',
@@ -303,10 +327,12 @@ class _ChatPageState extends State<ChatPage> {
             'Build a modern app idea with me',
           ].map((text) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _SuggestionCard(text: text, onTap: () {
-                  _controller.text = text;
-                  _send();
-                }),
+                child: _SuggestionCard(
+                    text: text,
+                    onTap: () {
+                      _controller.text = text;
+                      _send();
+                    }),
               )),
         ],
       );
@@ -346,16 +372,27 @@ class _ChatPageState extends State<ChatPage> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
                     child: Row(children: [
-                      const Icon(Icons.image_outlined, color: _chatPurple, size: 18),
+                      const Icon(Icons.image_outlined,
+                          color: _chatPurple, size: 18),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(_attachment!.name, style: const TextStyle(color: _chatText, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                      IconButton(onPressed: () => setState(() => _attachment = null), icon: const Icon(Icons.close, color: _chatMuted, size: 18)),
+                      Expanded(
+                          child: Text(_attachment!.name,
+                              style: const TextStyle(
+                                  color: _chatText, fontSize: 12),
+                              overflow: TextOverflow.ellipsis)),
+                      IconButton(
+                          onPressed: () => setState(() => _attachment = null),
+                          icon: const Icon(Icons.close,
+                              color: _chatMuted, size: 18)),
                     ]),
                   ),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    IconButton(onPressed: _chooseImage, icon: const Icon(Icons.add_photo_alternate_outlined, color: _chatMuted)),
+                    IconButton(
+                        onPressed: _chooseImage,
+                        icon: const Icon(Icons.add_photo_alternate_outlined,
+                            color: _chatMuted)),
                     Expanded(
                       child: TextField(
                         controller: _controller,
@@ -379,8 +416,15 @@ class _ChatPageState extends State<ChatPage> {
                         child: Container(
                           width: 44,
                           height: 44,
-                          decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [_chatPurple, _chatPink])),
-                          child: Icon(_loading ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded, color: Colors.white),
+                          decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                  colors: [_chatPurple, _chatPink])),
+                          child: Icon(
+                              _loading
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.arrow_upward_rounded,
+                              color: Colors.white),
                         ),
                       ),
                     ),
@@ -389,9 +433,14 @@ class _ChatPageState extends State<ChatPage> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 9),
                   child: Row(children: [
-                    Text(_mode, style: const TextStyle(color: _chatMuted, fontSize: 11, fontWeight: FontWeight.w700)),
+                    Text(_mode,
+                        style: const TextStyle(
+                            color: _chatMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700)),
                     const Spacer(),
-                    const Text('Destiny AI can make mistakes', style: TextStyle(color: _chatMuted, fontSize: 10)),
+                    const Text('Destiny AI can make mistakes',
+                        style: TextStyle(color: _chatMuted, fontSize: 10)),
                   ]),
                 ),
               ],
@@ -414,11 +463,14 @@ class _MessageBubble extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .86),
+        constraints:
+            BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .86),
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         decoration: BoxDecoration(
-          color: isUser ? _chatPurple.withOpacity(.20) : Colors.white.withOpacity(.065),
+          color: isUser
+              ? _chatPurple.withOpacity(.20)
+              : Colors.white.withOpacity(.065),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(20),
             topRight: const Radius.circular(20),
@@ -427,7 +479,9 @@ class _MessageBubble extends StatelessWidget {
           ),
           border: Border.all(color: Colors.white.withOpacity(.10)),
         ),
-        child: Text(text, style: const TextStyle(color: _chatText, fontSize: 15, height: 1.5)),
+        child: Text(text,
+            style:
+                const TextStyle(color: _chatText, fontSize: 15, height: 1.5)),
       ),
     );
   }
@@ -455,7 +509,11 @@ class _Dot extends StatelessWidget {
   final int delay;
   const _Dot({required this.delay});
   @override
-  Widget build(BuildContext context) => Container(width: 7, height: 7, decoration: const BoxDecoration(shape: BoxShape.circle, color: _chatPurple));
+  Widget build(BuildContext context) => Container(
+      width: 7,
+      height: 7,
+      decoration:
+          const BoxDecoration(shape: BoxShape.circle, color: _chatPurple));
 }
 
 class _SuggestionCard extends StatelessWidget {
@@ -471,8 +529,19 @@ class _SuggestionCard extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
               padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(.055), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withOpacity(.10))),
-              child: Row(children: [const Icon(Icons.auto_awesome, color: _chatGold, size: 18), const SizedBox(width: 12), Expanded(child: Text(text, style: const TextStyle(color: _chatText, fontWeight: FontWeight.w600))), const Icon(Icons.arrow_forward_ios, color: _chatMuted, size: 14)]),
+              decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.055),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withOpacity(.10))),
+              child: Row(children: [
+                const Icon(Icons.auto_awesome, color: _chatGold, size: 18),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: Text(text,
+                        style: const TextStyle(
+                            color: _chatText, fontWeight: FontWeight.w600))),
+                const Icon(Icons.arrow_forward_ios, color: _chatMuted, size: 14)
+              ]),
             ),
           ),
         ),
@@ -484,14 +553,23 @@ class _GlassButton extends StatelessWidget {
   final VoidCallback onTap;
   const _GlassButton({required this.icon, required this.onTap});
   @override
-  Widget build(BuildContext context) => GestureDetector(onTap: onTap, child: _GlassCircle(child: Icon(icon, color: _chatText, size: 19)));
+  Widget build(BuildContext context) => GestureDetector(
+      onTap: onTap,
+      child: _GlassCircle(child: Icon(icon, color: _chatText, size: 19)));
 }
 
 class _GlassCircle extends StatelessWidget {
   final Widget child;
   const _GlassCircle({required this.child});
   @override
-  Widget build(BuildContext context) => Container(width: 42, height: 42, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(.07), border: Border.all(color: Colors.white.withOpacity(.11))), child: Center(child: child));
+  Widget build(BuildContext context) => Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withOpacity(.07),
+          border: Border.all(color: Colors.white.withOpacity(.11))),
+      child: Center(child: child));
 }
 
 class _HeroOrb extends StatelessWidget {
@@ -501,8 +579,16 @@ class _HeroOrb extends StatelessWidget {
         height: 92,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(colors: [_chatPurple, _chatPink], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          boxShadow: [BoxShadow(color: _chatPurple.withOpacity(.28), blurRadius: 36, spreadRadius: 8)],
+          gradient: const LinearGradient(
+              colors: [_chatPurple, _chatPink],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight),
+          boxShadow: [
+            BoxShadow(
+                color: _chatPurple.withOpacity(.28),
+                blurRadius: 36,
+                spreadRadius: 8)
+          ],
         ),
         child: const Icon(Icons.auto_awesome, color: Colors.white, size: 38),
       );
@@ -518,7 +604,10 @@ class _GlassSheet extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
             padding: const EdgeInsets.fromLTRB(18, 22, 18, 30),
-            decoration: BoxDecoration(color: const Color(0xFF101326).withOpacity(.94), border: Border(top: BorderSide(color: Colors.white.withOpacity(.12)))),
+            decoration: BoxDecoration(
+                color: const Color(0xFF101326).withOpacity(.94),
+                border: Border(
+                    top: BorderSide(color: Colors.white.withOpacity(.12)))),
             child: child,
           ),
         ),
@@ -528,11 +617,22 @@ class _GlassSheet extends StatelessWidget {
 class _GlowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final p1 = Paint()..shader = RadialGradient(colors: [_chatPurple.withOpacity(.13), Colors.transparent]).createShader(Rect.fromCircle(center: Offset(size.width * .15, size.height * .18), radius: size.width * .65));
-    final p2 = Paint()..shader = RadialGradient(colors: [_chatPink.withOpacity(.09), Colors.transparent]).createShader(Rect.fromCircle(center: Offset(size.width * .9, size.height * .35), radius: size.width * .6));
+    final p1 = Paint()
+      ..shader = RadialGradient(
+              colors: [_chatPurple.withOpacity(.13), Colors.transparent])
+          .createShader(Rect.fromCircle(
+              center: Offset(size.width * .15, size.height * .18),
+              radius: size.width * .65));
+    final p2 = Paint()
+      ..shader = RadialGradient(
+              colors: [_chatPink.withOpacity(.09), Colors.transparent])
+          .createShader(Rect.fromCircle(
+              center: Offset(size.width * .9, size.height * .35),
+              radius: size.width * .6));
     canvas.drawRect(Offset.zero & size, p1);
     canvas.drawRect(Offset.zero & size, p2);
   }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

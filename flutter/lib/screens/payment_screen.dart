@@ -17,7 +17,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       await PaymentService.instance.startPayment(amount: amount, plan: plan);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Complete payment securely in the checkout window.')),
+          const SnackBar(
+              content:
+                  Text('Complete payment securely in the checkout window.')),
         );
       }
     } catch (e) {
@@ -52,15 +54,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Text('Choose your plan', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text('Choose your plan',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
             _plan('Basic', 500, 'Access premium features'),
             _plan('Pro', 1000, 'More AI usage and features'),
             _plan('Premium', 2000, 'Full premium experience'),
-            if (_loading) const Padding(
-              padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator(),
-            ),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(),
+              ),
           ],
         ),
       ),
