@@ -18,11 +18,9 @@ const corsHeaders = {
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
-
 function text(value: unknown, max = 160): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
-
 function numberValue(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -31,7 +29,6 @@ function numberValue(value: unknown): number | null {
   }
   return null;
 }
-
 function successfulStatus(value: unknown): boolean {
   const s = text(value, 40).toLowerCase();
   return ["success", "successful", "completed", "complete", "paid", "settled", "successful_transaction"].includes(s);
@@ -55,9 +52,9 @@ serve(async (req) => {
     const reference = text(body?.reference);
     const plan = text(body?.plan, 30).toLowerCase();
     if (!reference) return jsonResponse({ error: "Transaction reference is required." }, 400);
-    if (!["pro", "premium"].includes(plan)) return jsonResponse({ error: "Unsupported plan." }, 400);
+    if (!["basic", "pro", "premium"].includes(plan)) return jsonResponse({ error: "Unsupported plan." }, 400);
 
-    const expectedAmountNaira = plan === "premium" ? 2000 : 1000;
+    const expectedAmountNaira = plan === "premium" ? 2000 : plan === "pro" ? 1000 : 500;
     const expectedAmountKobo = expectedAmountNaira * 100;
 
     const { data: payment, error: paymentError } = await admin
@@ -90,7 +87,6 @@ serve(async (req) => {
       },
       body: JSON.stringify({ reference, transaction_reference: reference }),
     });
-
     const raw = await providerResponse.text();
     let provider: any = {};
     try { provider = JSON.parse(raw); } catch (_) { provider = { raw }; }
@@ -107,9 +103,7 @@ serve(async (req) => {
     const providerAccount = text(data?.destination_account_number ?? data?.account_number ?? data?.credit_account_number, 40);
     const providerAccountName = text(data?.destination_account_name ?? data?.account_name ?? data?.credit_account_name, 160);
 
-    const amountMatches = providerAmount === null
-      ? false
-      : (providerAmount === expectedAmountKobo || providerAmount === expectedAmountNaira);
+    const amountMatches = providerAmount === expectedAmountKobo || providerAmount === expectedAmountNaira;
     const accountMatches = !MONIEPOINT_ACCOUNT_NUMBER || !providerAccount || providerAccount === MONIEPOINT_ACCOUNT_NUMBER;
     const referenceMatches = !providerReference || providerReference === reference;
     const verified = successfulStatus(providerStatus) && amountMatches && accountMatches && referenceMatches;
@@ -119,9 +113,10 @@ serve(async (req) => {
         verified: false,
         code: "TRANSACTION_NOT_MATCHED",
         message: "The transaction was found but did not pass the amount, recipient, reference, and success checks.",
-      }, 200);
+      });
     }
 
+    const now = new Date().toISOString();
     const metadata = {
       ...(payment.metadata ?? {}),
       verified_transaction_reference: providerReference,
@@ -129,19 +124,38 @@ serve(async (req) => {
       verified_account_name: providerAccountName,
       verified_account_number: providerAccount,
       provider_status: providerStatus,
-      verified_at: new Date().toISOString(),
+      verified_at: now,
     };
 
     const { error: updateError } = await admin
       .from("destiny_payments")
-      .update({ status: "paid", paid_at: new Date().toISOString(), metadata })
+      .update({ status: "paid", paid_at: now, metadata })
       .eq("id", payment.id)
       .eq("user_id", user.id)
       .eq("status", "pending");
-
     if (updateError) {
-      console.error("Payment entitlement update failed", updateError);
-      return jsonResponse({ error: "Transaction verified, but Premium activation failed. Please try again." }, 500);
+      console.error("Payment status update failed", updateError);
+      return jsonResponse({ error: "Transaction verified, but activation failed. Please try again." }, 500);
+    }
+
+    const profileUpdate: Record<string, unknown> = {
+      plan,
+      premium_source: "moniepoint",
+      premium_started_at: now,
+    };
+    if (plan === "premium") {
+      profileUpdate.premium_active = true;
+      profileUpdate.premium_expires_at = null;
+    }
+
+    const { error: profileError } = await admin
+      .from("destiny_profiles")
+      .update(profileUpdate)
+      .eq("user_id", user.id);
+
+    if (profileError) {
+      console.error("Entitlement update failed", profileError);
+      return jsonResponse({ error: "Payment verified, but account activation needs a retry." }, 500);
     }
 
     return jsonResponse({ verified: true, status: "paid", plan, reference });
