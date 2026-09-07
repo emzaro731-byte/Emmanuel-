@@ -1,170 +1,142 @@
-# Destiny AI - React Native Android Application
+# Destiny AI — React Native Android Application
 
-A professional AI companion mobile application built with React Native, TypeScript, and Supabase.
+A dark, mobile-first AI companion built with Expo/React Native, TypeScript, and Supabase.
 
-## Features
+## Current stack
 
-- 💬 **Chat Interface** - Conversation with Destiny AI via Supabase Edge Functions
-- 🎨 **Studio** - Generate images, videos, and music with AI
-- ⚙️ **Settings** - Customize appearance and AI mode
-- 👤 **Profile** - User account and authentication
-- 🌙 **Dark Mode** - Beautiful dark-themed UI
-- 💾 **Conversation History** - Local storage with AsyncStorage
-- 🔐 **Secure Auth** - Supabase authentication integration
+- React Native 0.79.5
+- Expo 53
+- React 19
+- TypeScript 5.7+
+- Supabase JS 2.57.4
+- Android SDK 35
+- Java 17
+- Node 20+
 
-## Tech Stack
+## App capabilities
 
-- **React Native** 0.79.5
-- **TypeScript** 5.7+
-- **React** 19.0.0
-- **Supabase** 2.57.4
-- **Gradle** 8.13
-- **Android SDK** 35
-- **Java** 17
+- Chat with Destiny AI through a Supabase Edge Function
+- Chat modes: Chat, Code, Study, Write, and Creative
+- Local conversation history
+- Local memory, projects, and canvas data
+- AI Studio for image/video/music generation through Edge Functions
+- Supabase authentication and persistent sessions
+- Dark, mobile-first interface
 
-## Project Structure
+## Project structure
 
-```
+```text
 .
-├── App.tsx                 # Main React Native component
-├── index.js               # Application entry point
-├── app.json               # React Native configuration
-├── package.json           # Dependencies
-├── tsconfig.json          # TypeScript configuration
-├── babel.config.js        # Babel transpiler config
-├── metro.config.js        # Metro bundler config
+├── App.tsx
+├── index.js
+├── app.json
+├── package.json
+├── tsconfig.json
+├── babel.config.js
+├── metro.config.js
+├── .env.example
+├── .github/workflows/android.yml
 ├── lib/
-│   └── supabase.ts       # Supabase client initialization
+│   └── supabase.ts
 ├── android/
-│   ├── app/
-│   │   ├── build.gradle   # App-level Gradle configuration
-│   │   ├── proguard-rules.pro
-│   │   └── src/main/
-│   │       ├── AndroidManifest.xml
-│   │       ├── java/com/destinyai/
-│   │       │   ├── MainActivity.kt
-│   │       │   └── MainApplication.kt
-│   │       └── res/
-│   │           ├── values/
-│   │           ├── values-night/
-│   │           └── mipmap/
-│   ├── build.gradle
-│   ├── settings.gradle
-│   ├── gradle.properties
-│   └── gradlew
-├── .github/workflows/
-│   └── android.yml       # CI/CD workflow
-└── supabase/functions/   # Edge functions
+└── supabase/functions/
     ├── destiny-ai/
     ├── generate-image/
+    ├── generate-video/
     └── generate-music/
 ```
 
-## Building
+## Environment configuration
 
-### Prerequisites
+Create a local `.env` from `.env.example` and provide the public Supabase client values:
 
-- Node.js 20+
-- Java 17
-- Android SDK 35
-- Gradle 8.13
+```text
+EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+```
 
-### Local Build
+Do **not** place provider API secrets in the mobile app. Secrets for AI providers should remain in Supabase Edge Function secrets.
+
+The mobile app only needs the Supabase public client configuration to authenticate and call your Edge Functions.
+
+## Local development
 
 ```bash
-# Install dependencies
-npm install
-
-# Start Metro bundler
+npm ci
+npm run typecheck
 npm start
+```
 
-# Build and run on Android (separate terminal)
+For Android:
+
+```bash
 npm run android
 ```
 
-### Production APK
+React Native's Android tooling uses Android SDK 35 and JDK 17 for this project. citeturn0search5
+
+## Production APK
 
 ```bash
 cd android
 ./gradlew assembleRelease --stacktrace
 ```
 
-APK output: `android/app/build/outputs/apk/release/app-release.apk`
+The release APK is generated at:
 
-## CI/CD Pipeline
-
-The GitHub Actions workflow (`.github/workflows/android.yml`) automatically:
-
-1. Checks out code
-2. Sets up Java 17 and Node 20
-3. Installs Android SDK
-4. Installs npm dependencies
-5. Verifies project structure
-6. Generates Gradle wrapper
-7. Creates debug keystore
-8. Builds release APK
-9. Uploads APK as artifact
-
-**Triggers:** Push to `main` or manual `workflow_dispatch`
-
-## Configuration
-
-### Supabase
-
-- **Project URL:** `https://vihbsfrwnslnmheowkhy.supabase.co`
-- **Anon Key:** Configured in `lib/supabase.ts`
-- **Edge Functions:** `destiny-ai`, `generate-image`, `generate-music`
-
-### Android
-
-- **Package ID:** `com.destinyai`
-- **App Name:** Destiny AI
-- **Min SDK:** 24
-- **Target SDK:** 35
-- **Compile SDK:** 35
-
-## TypeScript
-
-All source files use TypeScript for type safety:
-
-```bash
-npm run typecheck
+```text
+android/app/build/outputs/apk/release/app-release.apk
 ```
 
-## Troubleshooting
+## Continuous integration
 
-### Build Fails
+`.github/workflows/android.yml` now runs on pushes to `main` and upgrade branches, pull requests targeting `main`, and manual dispatches. It:
 
-1. Clean build: `cd android && ./gradlew clean`
-2. Clear cache: `npm start -- --reset-cache`
-3. Delete node_modules: `rm -rf node_modules && npm install`
+1. Installs Node 20 and Java 17.
+2. Installs npm dependencies with `npm ci`.
+3. Runs TypeScript type checking.
+4. Runs Expo Android prebuild validation.
+5. Builds the release APK with Gradle.
+6. Uploads the release APK as a GitHub Actions artifact.
 
-### Keystore Issues
+GitHub Actions supports automated build/test workflows and uploaded artifacts, making the Android build reproducible outside a local machine. citeturn0search0turn0search9
 
-The workflow auto-generates `android/app/debug.keystore`. For custom keys:
+## Supabase
 
-```bash
-keytool -genkeypair -v \
-  -keystore android/app/my.keystore \
-  -storepass password \
-  -alias key-alias \
-  -keypass password \
-  -keyalg RSA \
-  -keysize 2048 \
-  -validity 10000
+Required Edge Functions:
+
+- `destiny-ai`
+- `generate-image`
+- `generate-video`
+- `generate-music`
+
+The Supabase client is initialized in `lib/supabase.ts` and reads the public Expo environment variables at build time.
+
+## Android configuration
+
+- Package ID: `com.destinyai`
+- App name: `Destiny AI`
+- Minimum SDK: 24
+- Target/compile SDK: 35
+- Orientation: portrait
+
+## Upgrade branch
+
+The current upgrade work is developed on:
+
+```text
+upgrade/destiny-ai-v2
 ```
 
-## Release
+The branch adds a safer environment configuration, a reproducible Android CI/release pipeline, and updated project documentation without exposing provider secrets in the mobile source.
 
-1. Bump version in `package.json` and `android/app/build.gradle`
-2. Push to `main`
-3. GitHub Actions builds APK automatically
-4. Download APK from Actions artifacts
+## Release checklist
 
-## License
+Before publishing a production build:
 
-Proprietary - Destiny AI
-
-## Support
-
-For issues, open an issue in the repository.
+- Configure `.env` locally or the required GitHub/Expo environment variables.
+- Configure all Supabase Edge Function secrets server-side.
+- Run `npm run typecheck`.
+- Run the Android release workflow.
+- Test authentication, chat, history, Studio generation, and offline/local-state behavior on a physical Android device.
+- Use a production Android signing key for Play Store distribution rather than the debug keystore.
