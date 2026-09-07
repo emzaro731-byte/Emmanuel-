@@ -11,6 +11,7 @@ Destiny AI is a React Native + Expo mobile AI companion backed by Supabase Edge 
 - 📋 Copy assistant responses to the clipboard
 - 🔐 Supabase authentication/session persistence
 - ⚡ Offline-friendly local history with AsyncStorage
+- 💳 Secure payment-record flow prepared for Moniepoint checkout/bank transfer
 - 📱 Android release pipeline with GitHub Actions
 
 ## 🧱 Stack
@@ -34,6 +35,8 @@ package.json                   Scripts and dependencies
 .eas.json / eas.json           EAS build profiles
 .github/workflows/android.yml  Release APK CI
 supabase/                      Edge Functions and backend configuration
+supabase/payments_schema.sql   Payment records and RLS
+supabase/functions/create-payment/index.ts  Secure payment creation endpoint
 android/                       Native Android project
 ```
 
@@ -76,6 +79,23 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
 Use `.env.example` as the template. Do not commit private service-role keys or other server secrets to the repository. The mobile client must only use a publishable/anon key with proper Supabase Row Level Security policies.
+
+## 💳 Payment setup
+
+The repository now includes a secure `create-payment` Supabase Edge Function and a `destiny_payments` table. The Edge Function authenticates the signed-in user and creates a pending payment reference server-side.
+
+Set these values as **Supabase Edge Function secrets**, not Expo/mobile environment variables:
+
+```text
+MONIEPOINT_CHECKOUT_URL=your_secure_moniepoint_checkout_url
+MONIEPOINT_ACCOUNT_NAME=your_business_account_name
+MONIEPOINT_ACCOUNT_NUMBER=your_business_account_number
+MONIEPOINT_BANK_NAME=Moniepoint MFB
+```
+
+Run `supabase/payments_schema.sql` in the Supabase SQL Editor before using the function.
+
+The current Moniepoint public site confirms that businesses can create secure online checkout pages supporting cards, bank transfers and USSD. The exact merchant/API credentials and checkout integration should be obtained from Moniepoint rather than guessed or embedded in the mobile app.
 
 ## 📦 APK builds
 
