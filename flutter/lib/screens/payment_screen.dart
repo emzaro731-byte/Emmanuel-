@@ -9,7 +9,8 @@ class PaymentScreen extends StatefulWidget {
   State<PaymentScreen> createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserver {
+class _PaymentScreenState extends State<PaymentScreen>
+    with WidgetsBindingObserver {
   bool _loading = false;
   bool _checking = false;
   bool _premium = false;
@@ -42,7 +43,9 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
       if (mounted) setState(() => _premium = active);
       if (active && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Premium is active. All Premium features are unlocked.')),
+          const SnackBar(
+              content: Text(
+                  'Premium is active. All Premium features are unlocked.')),
         );
       }
     } catch (_) {
@@ -89,8 +92,12 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
         ),
         subtitle: Text(description),
         trailing: FilledButton(
-          onPressed: (_loading || _premium) ? null : () => _pay(price, name.toLowerCase()),
-          child: Text(_premium && isPremium ? 'Active' : (isPremium ? 'Premium' : '₦$price')),
+          onPressed: (_loading || _premium)
+              ? null
+              : () => _pay(price, name.toLowerCase()),
+          child: Text(_premium && isPremium
+              ? 'Active'
+              : (isPremium ? 'Premium' : '₦$price')),
         ),
       ),
     );
@@ -106,7 +113,10 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
             tooltip: 'Refresh Premium status',
             onPressed: _refreshPremium,
             icon: _checking
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh),
           ),
         ],
@@ -120,7 +130,8 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
                 child: ListTile(
                   leading: const Icon(Icons.workspace_premium),
                   title: const Text('Premium active'),
-                  subtitle: const Text('Your Selar Premium payment has been confirmed.'),
+                  subtitle: const Text(
+                      'Your Selar Premium payment has been confirmed.'),
                 ),
               ),
             const SizedBox(height: 10),

@@ -31,7 +31,8 @@ class PremiumService {
     if (user == null) return null;
     return await _supabase
         .from('destiny_profiles')
-        .select('plan, premium_active, premium_source, premium_started_at, premium_expires_at')
+        .select(
+            'plan, premium_active, premium_source, premium_started_at, premium_expires_at')
         .eq('user_id', user.id)
         .maybeSingle();
   }
