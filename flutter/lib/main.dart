@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/media_studio_page.dart';
+import 'screens/payment_screen.dart';
 
 const defaultSupabaseUrl = 'https://vihbsfrwnslnmheowkhy.supabase.co';
 const defaultSupabaseKey = 'sb_publishable_j8gV4-PeFte1RMgl759uQQ_KrM_3vzK';
@@ -318,5 +319,5 @@ class ProfilePage extends StatelessWidget {
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
   @override
-  Widget build(BuildContext context) => SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [const Text('Settings', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)), const SizedBox(height: 8), const Text('Customize your Destiny AI experience.', style: TextStyle(color: muted)), const SizedBox(height: 22), Card(color: card, child: Column(children: [const ListTile(leading: Icon(Icons.dark_mode_outlined, color: gold), title: Text('Appearance'), subtitle: Text('Dark premium theme')), const ListTile(leading: Icon(Icons.security_outlined, color: gold), title: Text('Privacy'), subtitle: Text('Authentication and cloud data are handled by Supabase')), const ListTile(leading: Icon(Icons.info_outline, color: gold), title: Text('Version'), subtitle: Text('Destiny AI 2.0'))])), const SizedBox(height: 20), OutlinedButton.icon(onPressed: () async { await Supabase.instance.client.auth.signOut(); }, icon: const Icon(Icons.logout), label: const Text('Sign out'))]));
+  Widget build(BuildContext context) => SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [const Text('Settings', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)), const SizedBox(height: 8), const Text('Customize your Destiny AI experience.', style: TextStyle(color: muted)), const SizedBox(height: 22), Card(color: card, child: Column(children: [const ListTile(leading: Icon(Icons.dark_mode_outlined, color: gold), title: Text('Appearance'), subtitle: Text('Dark premium theme')), const ListTile(leading: Icon(Icons.security_outlined, color: gold), title: Text('Privacy'), subtitle: Text('Authentication and cloud data are handled by Supabase')), ListTile(leading: const Icon(Icons.workspace_premium_outlined, color: gold), title: const Text('Upgrade plan'), subtitle: const Text('Basic, Pro and Premium'), trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaymentScreen()))), const ListTile(leading: Icon(Icons.info_outline, color: gold), title: Text('Version'), subtitle: Text('Destiny AI 2.0'))])), const SizedBox(height: 20), OutlinedButton.icon(onPressed: () async { await Supabase.instance.client.auth.signOut(); }, icon: const Icon(Icons.logout), label: const Text('Sign out'))]));
 }
