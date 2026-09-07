@@ -7,10 +7,24 @@ class PaymentService {
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  static const String premiumCheckoutUrl = 'https://selar.com/66ft71u971';
+
+  Future<void> openPremiumCheckout() async {
+    final uri = Uri.parse(premiumCheckoutUrl);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) throw Exception('Could not open Premium checkout');
+  }
+
   Future<void> startPayment({
     required int amount,
     required String plan,
   }) async {
+    // Premium now uses the direct Selar checkout link.
+    if (plan.toLowerCase() == 'premium') {
+      await openPremiumCheckout();
+      return;
+    }
+
     final response = await _supabase.functions.invoke(
       'create-payment',
       body: {'amount': amount, 'plan': plan},
