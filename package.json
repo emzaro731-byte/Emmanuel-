@@ -8,8 +8,7 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --non-interactive",
     "build:android": "expo prebuild --non-interactive && cd android && ./gradlew assembleRelease",
-    "typecheck": "tsc --noEmit",
-    "doctor": "expo-doctor"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -24,7 +23,6 @@
     "@babel/core": "^7.25.2",
     "@react-native/typescript-config": "0.79.5",
     "@types/react": "^19.0.0",
-    "expo-doctor": "^1.17.0",
     "typescript": "^5.7.2"
   },
   "engines": { "node": ">=20" }
