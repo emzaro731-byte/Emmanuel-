@@ -14,6 +14,7 @@ permissions:
 
 env:
   FLUTTER_SUPABASE_URL: https://vihbsfrwnslnmheowkhy.supabase.co
+  FLUTTER_SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
 
 jobs:
   build:
@@ -53,24 +54,8 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Install known-good source
-        run: |
-          if [ -f lib/main_fixed.dart ]; then
-            cp lib/main_fixed.dart lib/main.dart
-            rm -f lib/main_fixed.dart
-          fi
-          python3 - <<'PY'
-          from pathlib import Path
-          chat = Path('lib/screens/chat_page.dart')
-          if chat.exists():
-              s = chat.read_text(encoding='utf-8')
-              s = s.replace('if (rows is List && rows.isNotEmpty) {', 'if (rows.isNotEmpty) {', 1)
-              chat.write_text(s, encoding='utf-8')
-          Path('test/widget_test.dart').unlink(missing_ok=True)
-          PY
-
       - name: Format source
-        run: dart format lib
+        run: dart format --output=none --set-exit-if-changed lib
 
       - name: Static analysis
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
@@ -80,7 +65,8 @@ jobs:
           flutter clean
           flutter pub get
           flutter build apk --release \
-            --dart-define=SUPABASE_URL="$FLUTTER_SUPABASE_URL"
+            --dart-define=SUPABASE_URL="$FLUTTER_SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="${FLUTTER_SUPABASE_KEY:-sb_publishable_j8gV4-PeFte1RMgl759uQQ_KrM_3vzK}"
 
       - name: Verify APK
         run: |
