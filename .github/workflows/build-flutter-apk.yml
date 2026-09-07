@@ -40,6 +40,10 @@ jobs:
           if [ ! -d android ]; then
             flutter create --platforms=android --org com.destinyai --project-name destinyai .
           fi
+          # flutter create can generate a default widget_test.dart that imports
+          # the generated project class MyApp. Destiny AI uses DestinyApp instead,
+          # so remove the stale template test before static analysis.
+          rm -f test/widget_test.dart
           if [ -f android/app/build.gradle.kts ]; then
             sed -i 's/applicationId = "[^"]*"/applicationId = "com.destinyai"/' android/app/build.gradle.kts
           fi
