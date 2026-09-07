@@ -17,3 +17,8 @@ verify_jwt = false
 
 [functions.create-payment]
 verify_jwt = false
+
+# Selar calls this public webhook endpoint after payment.
+# The function performs its own signature check with SELAR_WEBHOOK_SECRET.
+[functions.selar-webhook]
+verify_jwt = false
