@@ -4,8 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 
 function getSupabaseServerKey(): string {
-  // Prefer the modern Supabase secret-key collection. Keep the legacy
-  // service-role fallback for existing deployments during migration.
   const secretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
   if (secretKeys) {
     try {
@@ -41,6 +39,7 @@ function safeText(value: unknown, max = 120): string {
 }
 
 const PLANS: Record<string, { amountKobo: number; label: string }> = {
+  basic: { amountKobo: 50000, label: "Destiny AI Basic" },
   pro: { amountKobo: 100000, label: "Destiny AI Pro" },
   premium: { amountKobo: 200000, label: "Destiny AI Premium" },
 };
@@ -51,9 +50,7 @@ serve(async (req) => {
   if (!SUPABASE_URL || !SERVER_KEY) return jsonResponse({ error: "Payment backend is not configured." }, 500);
 
   const authorization = req.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return jsonResponse({ error: "Authentication required." }, 401);
-  }
+  if (!authorization?.startsWith("Bearer ")) return jsonResponse({ error: "Authentication required." }, 401);
 
   try {
     const adminClient = createClient(SUPABASE_URL, SERVER_KEY);
@@ -67,12 +64,7 @@ serve(async (req) => {
     if (!selected) return jsonResponse({ error: "Unsupported plan." }, 400);
 
     const reference = `DESTINY-${Date.now()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    const metadata = {
-      user_id: user.id,
-      plan,
-      label: selected.label,
-      created_from: "destiny-ai-mobile",
-    };
+    const metadata = { user_id: user.id, plan, label: selected.label, created_from: "destiny-ai-mobile" };
 
     const { data: payment, error: insertError } = await adminClient
       .from("destiny_payments")
@@ -100,11 +92,9 @@ serve(async (req) => {
       payment,
       instructions: MONIEPOINT_CHECKOUT_URL
         ? "Continue to the secure Moniepoint checkout page."
-        : "A Moniepoint checkout URL has not been configured yet. Use the payment reference for the supported manual transfer flow.",
+        : "Transfer the exact amount and enter the resulting transaction/session reference for server verification.",
     };
 
-    // Account details are loaded only from Edge Function secrets. They are
-    // never committed to GitHub or stored in the public payment table.
     if (MONIEPOINT_ACCOUNT_NUMBER) {
       response.bank_transfer = {
         bank_name: MONIEPOINT_BANK_NAME,
