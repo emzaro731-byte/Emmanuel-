@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { registerRootComponent } from "expo";
 import App from "./App";
+import AuthGate from "./components/AuthGate";
 
 class AppErrorBoundary extends React.Component {
   state = { error: null };
@@ -60,11 +61,11 @@ const styles = StyleSheet.create({
 function Root() {
   return (
     <AppErrorBoundary>
-      <App />
+      <AuthGate>
+        <App />
+      </AuthGate>
     </AppErrorBoundary>
   );
 }
 
-// Expo's registerRootComponent uses the correct native component name
-// for both Expo/prebuild and standalone Android builds.
 registerRootComponent(Root);
