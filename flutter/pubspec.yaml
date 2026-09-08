@@ -1,7 +1,7 @@
 name: destiny_ai
 description: Destiny AI mobile app built with Flutter and Supabase.
 publish_to: "none"
-version: 2.0.0+20
+version: 2.0.0+21
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -15,6 +15,9 @@ dependencies:
   image_picker: ^1.2.0
   shared_preferences: ^2.5.3
   url_launcher: ^6.3.2
+  speech_to_text: ^7.4.0
+  flutter_tts: ^4.2.5
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:
