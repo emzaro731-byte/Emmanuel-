@@ -243,7 +243,8 @@ class _ChatPageState extends State<ChatPage> {
 
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
-      _finishWithError(assistantId, 'Your session has expired. Please sign in again.');
+      _finishWithError(
+          assistantId, 'Your session has expired. Please sign in again.');
       return;
     }
 
@@ -466,9 +467,7 @@ class _ChatPageState extends State<ChatPage> {
               for (final mode in modes)
                 ListTile(
                   leading: Icon(
-                    _mode == mode
-                        ? Icons.check_circle
-                        : Icons.circle_outlined,
+                    _mode == mode ? Icons.check_circle : Icons.circle_outlined,
                     color: _mode == mode ? _gold : _muted,
                   ),
                   title: Text(
@@ -760,9 +759,7 @@ class _ChatPageState extends State<ChatPage> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: LinearGradient(
-                              colors: _busy
-                                  ? [_gold, _pink]
-                                  : [_purple, _pink],
+                              colors: _busy ? [_gold, _pink] : [_purple, _pink],
                             ),
                           ),
                           child: Icon(
