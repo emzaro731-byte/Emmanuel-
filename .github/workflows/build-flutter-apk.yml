@@ -8,26 +8,24 @@ on:
       - 'flutter/**'
       - '.github/workflows/build-flutter-apk.yml'
       - 'tool/fix_flutter_dart.py'
+      - 'tool/normalize_chat_syntax.py'
   workflow_call:
 
 permissions:
   contents: write
 
-env:
-  FLUTTER_SUPABASE_URL: https://vihbsfrwnslnmheowkhy.supabase.co
-  FLUTTER_SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-
 jobs:
   build:
-    name: Build Android APK
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: flutter
-    timeout-minutes: 30
+    env:
+      FLUTTER_SUPABASE_URL: https://vihbsfrwnslnmheowkhy.supabase.co
+      FLUTTER_SUPABASE_KEY: ${{ secrets.FLUTTER_SUPABASE_KEY }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Flutter
@@ -55,6 +53,10 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Normalize chat syntax
+        working-directory: .
+        run: python3 tool/normalize_chat_syntax.py
 
       - name: Repair generated streaming syntax
         working-directory: .
