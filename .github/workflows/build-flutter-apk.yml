@@ -7,8 +7,6 @@ on:
     paths:
       - 'flutter/**'
       - '.github/workflows/build-flutter-apk.yml'
-      - 'tool/fix_flutter_dart.py'
-      - 'tool/normalize_chat_syntax.py'
   workflow_call:
 
 permissions:
@@ -17,12 +15,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flutter
-    env:
-      FLUTTER_SUPABASE_URL: https://vihbsfrwnslnmheowkhy.supabase.co
-      FLUTTER_SUPABASE_KEY: ${{ secrets.FLUTTER_SUPABASE_KEY }}
 
     steps:
       - name: Checkout
@@ -35,6 +27,7 @@ jobs:
           cache: true
 
       - name: Prepare Android project
+        working-directory: flutter
         run: |
           if [ ! -d android ]; then
             flutter create --platforms=android --org com.destinyai --project-name destinyai .
@@ -47,26 +40,20 @@ jobs:
             sed -i 's/applicationId "[^"]*"/applicationId "com.destinyai"/' android/app/build.gradle
           fi
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ] && ! grep -q 'android.permission.INTERNET' "$MANIFEST"; then
-            sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+          if [ -f "$MANIFEST" ]; then
+            grep -q 'android.permission.INTERNET' "$MANIFEST" || sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+            grep -q 'android.permission.RECORD_AUDIO' "$MANIFEST" || sed -i '/<manifest /a\    <uses-permission android:name="android.permission.RECORD_AUDIO" />' "$MANIFEST"
           fi
 
       - name: Install dependencies
+        working-directory: flutter
         run: flutter pub get
 
-      - name: Normalize chat syntax
-        working-directory: .
-        run: python3 tool/normalize_chat_syntax.py
-
-      - name: Repair generated streaming syntax
-        working-directory: .
-        run: python3 tool/fix_flutter_dart.py
-
       - name: Format source
+        working-directory: flutter
         run: dart format lib
 
       - name: Persist formatting changes
-        working-directory: .
         run: |
           if [[ -n "$(git status --porcelain flutter/lib)" ]]; then
             git config user.name "github-actions[bot]"
@@ -77,9 +64,14 @@ jobs:
           fi
 
       - name: Static analysis
+        working-directory: flutter
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build release APK
+        working-directory: flutter
+        env:
+          FLUTTER_SUPABASE_URL: https://vihbsfrwnslnmheowkhy.supabase.co
+          FLUTTER_SUPABASE_KEY: ${{ secrets.FLUTTER_SUPABASE_KEY }}
         run: |
           flutter clean
           flutter pub get
@@ -88,6 +80,7 @@ jobs:
             --dart-define=SUPABASE_PUBLISHABLE_KEY="${FLUTTER_SUPABASE_KEY:-sb_publishable_j8gV4-PeFte1RMgl759uQQ_KrM_3vzK}"
 
       - name: Verify APK
+        working-directory: flutter
         run: |
           test -s build/app/outputs/flutter-apk/app-release.apk
           ls -lh build/app/outputs/flutter-apk/app-release.apk
