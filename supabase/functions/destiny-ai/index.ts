@@ -10,11 +10,13 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Content-Type": "application/json",
 };
 
 function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
 function text(value: unknown, max = 12000): string {
@@ -53,12 +55,9 @@ serve(async (req) => {
   if (req.method !== "POST") return jsonResponse({ error: "Only POST requests are supported." }, 405);
 
   const authorization = req.headers.get("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return jsonResponse({ error: "Authentication required." }, 401);
-  }
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return jsonResponse({ error: "Supabase authentication is not configured." }, 500);
-  }
+  if (!authorization?.startsWith("Bearer ")) return jsonResponse({ error: "Authentication required." }, 401);
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return jsonResponse({ error: "Supabase authentication is not configured." }, 500);
+  if (!GROQ_API_KEY) return jsonResponse({ error: "GROQ_API_KEY is not configured in Supabase Function Secrets." }, 500);
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -66,10 +65,6 @@ serve(async (req) => {
     });
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return jsonResponse({ error: "Invalid or expired session." }, 401);
-
-    if (!GROQ_API_KEY) {
-      return jsonResponse({ error: "GROQ_API_KEY is not configured in Supabase Function Secrets." }, 500);
-    }
 
     const body = await req.json();
     let messages = Array.isArray(body?.messages) ? body.messages : [];
@@ -110,32 +105,88 @@ serve(async (req) => {
         temperature,
         max_tokens: maxTokens,
         reasoning_effort: reasoningEffort,
-        stream: false,
+        stream: true,
       }),
     });
 
-    const responseText = await groqResponse.text();
-    let groqData: any;
-    try { groqData = JSON.parse(responseText); } catch { groqData = { error: { message: responseText } }; }
-    if (!groqResponse.ok) {
-      console.error("Groq API error:", groqResponse.status, groqData);
-      return jsonResponse({ error: groqData?.error?.message || `Groq API returned HTTP ${groqResponse.status}.`, status: groqResponse.status }, groqResponse.status);
+    if (!groqResponse.ok || !groqResponse.body) {
+      const errorText = await groqResponse.text();
+      let parsed: any = null;
+      try { parsed = JSON.parse(errorText); } catch { /* plain text */ }
+      const message = parsed?.error?.message || errorText || `Groq API returned HTTP ${groqResponse.status}.`;
+      console.error("Groq streaming API error:", groqResponse.status, message);
+      return jsonResponse({ error: message, status: groqResponse.status }, groqResponse.status);
     }
 
-    const assistantMessage = groqData?.choices?.[0]?.message?.content ?? "";
-    if (!assistantMessage) return jsonResponse({ error: "The AI returned an empty response." }, 502);
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const reader = groqResponse.body!.getReader();
+        let buffer = "";
+        try {
+          controller.enqueue(encoder.encode(`event: start\ndata: ${JSON.stringify({ type: "start", model: selectedModel, user_id: user.id, mode })}\n\n`));
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() || "";
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith("data:")) continue;
+              const payload = trimmed.slice(5).trim();
+              if (!payload) continue;
+              if (payload === "[DONE]") {
+                controller.enqueue(encoder.encode(`event: done\ndata: ${JSON.stringify({ type: "done" })}\n\n`));
+                continue;
+              }
+              try {
+                const chunk = JSON.parse(payload);
+                const delta = chunk?.choices?.[0]?.delta?.content;
+                if (typeof delta === "string" && delta.length) {
+                  controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ type: "delta", text: delta })}\n\n`));
+                }
+              } catch (parseError) {
+                console.warn("Skipping malformed Groq SSE chunk", parseError);
+              }
+            }
+          }
+          if (buffer.trim().startsWith("data:")) {
+            const payload = buffer.trim().slice(5).trim();
+            if (payload && payload !== "[DONE]") {
+              try {
+                const chunk = JSON.parse(payload);
+                const delta = chunk?.choices?.[0]?.delta?.content;
+                if (typeof delta === "string" && delta.length) {
+                  controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ type: "delta", text: delta })}\n\n`));
+                }
+              } catch (_) {}
+            }
+          }
+          controller.enqueue(encoder.encode(`event: done\ndata: ${JSON.stringify({ type: "done" })}\n\n`));
+          controller.close();
+        } catch (error) {
+          console.error("Destiny AI stream error:", error);
+          try {
+            controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ type: "error", error: error instanceof Error ? error.message : "Streaming failed." })}\n\n`));
+            controller.close();
+          } catch (_) {}
+        } finally {
+          try { reader.releaseLock(); } catch (_) {}
+        }
+      },
+    });
 
-    return jsonResponse({
-      success: true,
-      message: assistantMessage,
-      response: assistantMessage,
-      answer: assistantMessage,
-      model: groqData?.model || selectedModel,
-      mode,
-      user_id: user.id,
-      project: project || null,
-      usage: groqData?.usage || null,
-      finish_reason: groqData?.choices?.[0]?.finish_reason || null,
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
     });
   } catch (error) {
     console.error("Destiny AI function error:", error);
