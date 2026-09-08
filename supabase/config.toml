@@ -3,6 +3,9 @@ project_id = "vihbsfrwnslnmheowkhy"
 [functions.destiny-ai]
 verify_jwt = false
 
+[functions.destiny-ai-gated]
+verify_jwt = false
+
 [functions.media-ai]
 verify_jwt = false
 
