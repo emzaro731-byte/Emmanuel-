@@ -1,7 +1,7 @@
 export type DestinyPlan = "free" | "pro" | "premium";
 
 // Existing Selar checkout supplied for Destiny AI premium access.
-// Replace/extend these URLs with separate Selar products when you create Pro/Credits products.
+// Keep provider secrets and verification server-side.
 export const SELAR_CHECKOUTS = {
   premium: "https://selar.com/66ft71u971",
 } as const;
@@ -11,23 +11,25 @@ export const DESTINY_PLANS = [
     id: "free" as const,
     name: "Free",
     price: "₦0",
-    description: "Try Destiny AI with basic daily limits.",
-    features: ["Basic AI chat", "Limited usage", "Local chat history"],
+    description: "Try Destiny AI with a small daily allowance.",
+    dailyAiLimit: 20,
+    features: ["Basic AI chat", "20 AI requests/day", "Local chat history"],
   },
   {
     id: "pro" as const,
     name: "Pro",
-    price: "₦2,500/month",
+    price: "₦1,000/month",
     description: "For regular AI users and creators.",
-    features: ["Higher AI limits", "Advanced AI modes", "More creation credits", "Priority access"],
-    checkoutUrl: undefined,
+    dailyAiLimit: 200,
+    features: ["200 AI requests/day", "Advanced AI modes", "More creation credits", "Priority access"],
   },
   {
     id: "premium" as const,
     name: "Premium",
-    price: "Selar checkout",
+    price: "₦2,000/month",
     description: "Unlock the premium Destiny AI experience.",
-    features: ["High usage limits", "Premium creation features", "Priority processing", "No feature lockouts"],
+    dailyAiLimit: 1000,
+    features: ["1,000 AI requests/day", "Premium creation features", "Priority processing", "High usage allowance"],
     checkoutUrl: SELAR_CHECKOUTS.premium,
   },
 ];
