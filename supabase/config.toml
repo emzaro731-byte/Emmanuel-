@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.destiny-ai-gated]
 verify_jwt = false
 
+[functions.selar-webhook]
+verify_jwt = false
+
 [functions.media-ai]
 verify_jwt = false
 
