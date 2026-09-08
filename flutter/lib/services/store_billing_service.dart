@@ -27,24 +27,21 @@ class StoreBillingService {
     if (!await _store.isAvailable()) return false;
 
     await _subscription?.cancel();
-    _subscription = _store.purchaseStream.listen(
-      (items) {
-        purchases = List.unmodifiable(items);
-        for (final purchase in items) {
-          if (purchase.status == PurchaseStatus.purchased ||
-              purchase.status == PurchaseStatus.restored) {
-            onPurchase(purchase);
-          } else if (purchase.status == PurchaseStatus.error) {
-            onError?.call(purchase.error ?? 'Purchase failed');
-          }
-
-          if (purchase.pendingCompletePurchase) {
-            _store.completePurchase(purchase);
-          }
+    _subscription = _store.purchaseStream.listen((items) {
+      purchases = List.unmodifiable(items);
+      for (final purchase in items) {
+        if (purchase.status == PurchaseStatus.purchased ||
+            purchase.status == PurchaseStatus.restored) {
+          onPurchase(purchase);
+        } else if (purchase.status == PurchaseStatus.error) {
+          onError?.call(purchase.error ?? 'Purchase failed');
         }
-      },
-      onError: onError,
-    );
+
+        if (purchase.pendingCompletePurchase) {
+          _store.completePurchase(purchase);
+        }
+      }
+    }, onError: onError);
 
     await refreshProducts();
     return true;

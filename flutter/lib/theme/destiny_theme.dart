@@ -13,15 +13,16 @@ abstract final class DestinyColors {
 
 abstract final class DestinyTheme {
   static ThemeData dark() {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: DestinyColors.primary,
-      brightness: Brightness.dark,
-    ).copyWith(
-      primary: DestinyColors.primary,
-      secondary: DestinyColors.secondary,
-      surface: DestinyColors.surface,
-      onSurface: DestinyColors.text,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: DestinyColors.primary,
+          brightness: Brightness.dark,
+        ).copyWith(
+          primary: DestinyColors.primary,
+          secondary: DestinyColors.secondary,
+          surface: DestinyColors.surface,
+          onSurface: DestinyColors.text,
+        );
 
     return ThemeData(
       useMaterial3: true,
@@ -43,7 +44,10 @@ abstract final class DestinyTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: DestinyColors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide.none,
@@ -54,7 +58,10 @@ abstract final class DestinyTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: DestinyColors.primary, width: 1.2),
+          borderSide: const BorderSide(
+            color: DestinyColors.primary,
+            width: 1.2,
+          ),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(

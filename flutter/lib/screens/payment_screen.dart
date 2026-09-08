@@ -53,16 +53,19 @@ class _PaymentScreenState extends State<PaymentScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(plan == 'premium'
-                ? 'Opening Premium checkout. Return here after payment.'
-                : 'Complete payment securely in the checkout window.'),
+            content: Text(
+              plan == 'premium'
+                  ? 'Opening Premium checkout. Return here after payment.'
+                  : 'Complete payment securely in the checkout window.',
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -71,8 +74,9 @@ class _PaymentScreenState extends State<PaymentScreen>
   Future<void> _showBankTransfer(String plan, int amount) async {
     setState(() => _loading = true);
     try {
-      final data =
-          await PaymentService.instance.startBankTransferPayment(plan: plan);
+      final data = await PaymentService.instance.startBankTransferPayment(
+        plan: plan,
+      );
       if (!mounted) return;
 
       final bank = data['bank_transfer'] is Map
@@ -94,8 +98,9 @@ class _PaymentScreenState extends State<PaymentScreen>
       );
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -109,8 +114,10 @@ class _PaymentScreenState extends State<PaymentScreen>
         child: Column(
           children: [
             ListTile(
-              title: Text(name,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(
+                name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               subtitle: Text(description),
               trailing: FilledButton(
                 onPressed: (_loading || _premium)
@@ -149,7 +156,8 @@ class _PaymentScreenState extends State<PaymentScreen>
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.refresh),
           ),
         ],
@@ -167,16 +175,19 @@ class _PaymentScreenState extends State<PaymentScreen>
                 ),
               ),
             const SizedBox(height: 10),
-            const Text('Choose your plan',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text(
+              'Choose your plan',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 20),
             _plan('Basic', 500, 'Access premium features'),
             _plan('Pro', 1000, 'More AI usage and features'),
             _plan('Premium', 2000, 'Full premium experience'),
             if (_loading)
               const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: CircularProgressIndicator())),
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              ),
           ],
         ),
       ),
@@ -185,11 +196,12 @@ class _PaymentScreenState extends State<PaymentScreen>
 }
 
 class _TransferDialog extends StatefulWidget {
-  const _TransferDialog(
-      {required this.plan,
-      required this.amount,
-      required this.bank,
-      required this.reference});
+  const _TransferDialog({
+    required this.plan,
+    required this.amount,
+    required this.bank,
+    required this.reference,
+  });
   final String plan;
   final int amount;
   final Map<String, dynamic> bank;
@@ -212,29 +224,44 @@ class _TransferDialogState extends State<_TransferDialog> {
   Future<void> _verify() async {
     final reference = _referenceController.text.trim();
     if (reference.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Enter the transaction reference/session ID.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter the transaction reference/session ID.'),
+        ),
+      );
       return;
     }
     setState(() => _verifying = true);
     try {
-      final result = await PaymentService.instance
-          .verifyTransaction(reference: reference, plan: widget.plan);
+      final result = await PaymentService.instance.verifyTransaction(
+        reference: reference,
+        plan: widget.plan,
+      );
       if (!mounted) return;
       if (result['verified'] == true) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
             content: Text(
-                'Payment verified. Premium access will activate automatically.')));
+              'Payment verified. Premium access will activate automatically.',
+            ),
+          ),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(result['message']?.toString() ??
-                'Payment could not be verified yet.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['message']?.toString() ??
+                  'Payment could not be verified yet.',
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _verifying = false);
     }
@@ -262,7 +289,8 @@ class _TransferDialogState extends State<_TransferDialog> {
             Text('Account number: $accountNumber'),
             const SizedBox(height: 8),
             const Text(
-                'Make the transfer, then enter the transaction reference/session ID below. The server will verify the transaction before access is granted.'),
+              'Make the transfer, then enter the transaction reference/session ID below. The server will verify the transaction before access is granted.',
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _referenceController,
@@ -276,15 +304,17 @@ class _TransferDialogState extends State<_TransferDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: _verifying ? null : () => Navigator.of(context).pop(),
-            child: const Text('Close')),
+          onPressed: _verifying ? null : () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
         FilledButton.icon(
           onPressed: _verifying ? null : _verify,
           icon: _verifying
               ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2))
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : const Icon(Icons.verified),
           label: const Text('Verify payment'),
         ),

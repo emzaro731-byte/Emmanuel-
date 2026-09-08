@@ -230,9 +230,7 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _attachment = null;
       _messages.add(_ChatMessage(id: userId, role: 'user', text: prompt));
-      _messages.add(
-        _ChatMessage(id: assistantId, role: 'assistant', text: ''),
-      );
+      _messages.add(_ChatMessage(id: assistantId, role: 'assistant', text: ''));
       _streamingId = assistantId;
       _busy = true;
     });
@@ -244,7 +242,9 @@ class _ChatPageState extends State<ChatPage> {
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
       _finishWithError(
-          assistantId, 'Your session has expired. Please sign in again.');
+        assistantId,
+        'Your session has expired. Please sign in again.',
+      );
       return;
     }
 
@@ -288,25 +288,30 @@ class _ChatPageState extends State<ChatPage> {
       }
 
       var buffer = '';
-      _subscription = response.stream.transform(utf8.decoder).listen(
-        (chunk) {
-          buffer += chunk;
-          final events = buffer.split('\n\n');
-          buffer = events.removeLast();
-          for (final event in events) {
-            _handleEvent(assistantId, event);
-          }
-        },
-        onError: (Object error) {
-          _finishWithError(assistantId, 'Streaming connection failed: $error');
-        },
-        onDone: () {
-          if (_streamingId == assistantId) {
-            _finishStream(assistantId);
-          }
-        },
-        cancelOnError: true,
-      );
+      _subscription = response.stream
+          .transform(utf8.decoder)
+          .listen(
+            (chunk) {
+              buffer += chunk;
+              final events = buffer.split('\n\n');
+              buffer = events.removeLast();
+              for (final event in events) {
+                _handleEvent(assistantId, event);
+              }
+            },
+            onError: (Object error) {
+              _finishWithError(
+                assistantId,
+                'Streaming connection failed: $error',
+              );
+            },
+            onDone: () {
+              if (_streamingId == assistantId) {
+                _finishStream(assistantId);
+              }
+            },
+            cancelOnError: true,
+          );
     } catch (e) {
       _finishWithError(
         assistantId,
@@ -501,17 +506,12 @@ class _ChatPageState extends State<ChatPage> {
             children: [
               ListTile(
                 leading: const Icon(Icons.auto_awesome, color: _purple),
-                title: const Text(
-                  'AI Studio',
-                  style: TextStyle(color: _text),
-                ),
+                title: const Text('AI Studio', style: TextStyle(color: _text)),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const MediaStudioPage(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const MediaStudioPage()),
                   );
                 },
               ),
@@ -525,18 +525,13 @@ class _ChatPageState extends State<ChatPage> {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const PaymentScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const PaymentScreen()),
                   );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: _text),
-                title: const Text(
-                  'Clear chat',
-                  style: TextStyle(color: _text),
-                ),
+                title: const Text('Clear chat', style: TextStyle(color: _text)),
                 onTap: () {
                   Navigator.pop(context);
                   _clear();
@@ -790,8 +785,8 @@ class _ChatPageState extends State<ChatPage> {
                         _busy
                             ? 'Generating live • Tap stop'
                             : _listening
-                                ? 'Listening…'
-                                : 'Live token streaming enabled',
+                            ? 'Listening…'
+                            : 'Live token streaming enabled',
                         style: const TextStyle(color: _muted, fontSize: 10),
                       ),
                     ],
@@ -876,16 +871,18 @@ class _Bubble extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Row(
-          mainAxisAlignment:
-              user ? MainAxisAlignment.end : MainAxisAlignment.start,
+          mainAxisAlignment: user
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (!user) const _AIAvatar(),
             if (!user) const SizedBox(width: 7),
             Flexible(
               child: Column(
-                crossAxisAlignment:
-                    user ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                crossAxisAlignment: user
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
                 children: [
                   Container(
                     constraints: BoxConstraints(
@@ -905,9 +902,7 @@ class _Bubble extends StatelessWidget {
                         bottomLeft: Radius.circular(user ? 20 : 5),
                         bottomRight: Radius.circular(user ? 5 : 20),
                       ),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(.10),
-                      ),
+                      border: Border.all(color: Colors.white.withOpacity(.10)),
                     ),
                     child: RichText(
                       text: TextSpan(
@@ -1024,11 +1019,7 @@ class _GlassIcon extends StatelessWidget {
   final Color? color;
   final VoidCallback? onTap;
 
-  const _GlassIcon({
-    required this.icon,
-    this.color,
-    this.onTap,
-  });
+  const _GlassIcon({required this.icon, this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1139,17 +1130,15 @@ class _GlowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          _purple.withOpacity(.10),
-          Colors.transparent,
-        ],
-      ).createShader(
-        Rect.fromCircle(
-          center: Offset(size.width * .75, size.height * .15),
-          radius: size.width * .75,
-        ),
-      );
+      ..shader =
+          RadialGradient(
+            colors: [_purple.withOpacity(.10), Colors.transparent],
+          ).createShader(
+            Rect.fromCircle(
+              center: Offset(size.width * .75, size.height * .15),
+              radius: size.width * .75,
+            ),
+          );
     canvas.drawRect(Offset.zero & size, paint);
   }
 

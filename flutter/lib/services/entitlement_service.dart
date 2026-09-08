@@ -33,7 +33,11 @@ class EntitlementService {
   Future<DestinyEntitlement> getCurrent() async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      return const DestinyEntitlement(plan: 'free', credits: 0, expiresAt: null);
+      return const DestinyEntitlement(
+        plan: 'free',
+        credits: 0,
+        expiresAt: null,
+      );
     }
 
     final row = await _client
@@ -43,7 +47,11 @@ class EntitlementService {
         .maybeSingle();
 
     if (row == null) {
-      return const DestinyEntitlement(plan: 'free', credits: 0, expiresAt: null);
+      return const DestinyEntitlement(
+        plan: 'free',
+        credits: 0,
+        expiresAt: null,
+      );
     }
     return DestinyEntitlement.fromMap(row);
   }

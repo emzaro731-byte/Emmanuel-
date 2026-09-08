@@ -17,10 +17,7 @@ class MediaService {
       body: {
         'action': action,
         if (model != null) 'model': model,
-        'input': {
-          ...?input,
-          'prompt': cleanPrompt,
-        },
+        'input': {...?input, 'prompt': cleanPrompt},
       },
     );
 
@@ -30,7 +27,8 @@ class MediaService {
 
     if (response.status >= 400 || data['error'] != null) {
       throw Exception(
-          data['error'] ?? 'Media generation failed (${response.status}).');
+        data['error'] ?? 'Media generation failed (${response.status}).',
+      );
     }
     return data;
   }
@@ -51,9 +49,7 @@ class MediaService {
       action: 'video',
       model: 'fal-ai/kling-video/v2.6/pro/text-to-video',
       prompt: prompt,
-      input: {
-        'sound': sound,
-      },
+      input: {'sound': sound},
     );
   }
 

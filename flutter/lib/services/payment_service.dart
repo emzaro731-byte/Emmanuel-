@@ -31,17 +31,15 @@ class PaymentService {
     return data;
   }
 
-  Future<void> startPayment({
-    required int amount,
-    required String plan,
-  }) async {
+  Future<void> startPayment({required int amount, required String plan}) async {
     if (plan.toLowerCase() == 'premium') {
       await openPremiumCheckout();
       return;
     }
 
     final data = await startBankTransferPayment(plan: plan);
-    final checkoutUrl = data['payment']?['checkout_url']?.toString() ??
+    final checkoutUrl =
+        data['payment']?['checkout_url']?.toString() ??
         data['checkout_url']?.toString();
 
     if (checkoutUrl == null || checkoutUrl.isEmpty) {
@@ -59,10 +57,7 @@ class PaymentService {
   }) async {
     final response = await _supabase.functions.invoke(
       'verify-payment',
-      body: {
-        'reference': reference.trim(),
-        'plan': plan.toLowerCase(),
-      },
+      body: {'reference': reference.trim(), 'plan': plan.toLowerCase()},
     );
 
     final data = response.data is Map
@@ -70,9 +65,11 @@ class PaymentService {
         : <String, dynamic>{};
 
     if (response.status < 200 || response.status >= 300) {
-      throw Exception(data['message']?.toString() ??
-          data['error']?.toString() ??
-          'Transaction verification failed');
+      throw Exception(
+        data['message']?.toString() ??
+            data['error']?.toString() ??
+            'Transaction verification failed',
+      );
     }
 
     return data;
